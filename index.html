@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Babad DM">
-<link rel="manifest" href="manifest.json">
+<link id="manifest-link" rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -103,6 +103,42 @@ td{padding:11px 14px;border-bottom:1px solid #f0f4f0;vertical-align:middle;font-
 <script>
 
 "use strict";
+
+/* ══ MULTI-SOCIÉTÉ ══ */
+var SOCIETES={
+  "babad":{nom:"Sarl Babad",lieu:"St André de Bagé",short:"Babad DM"}
+};
+var _urlParams=new URLSearchParams(window.location.search);
+var SOCIETE=_urlParams.get("s")||"";
+var SOC_CFG=SOCIETES[SOCIETE]||null;
+
+if(!SOC_CFG){
+  document.getElementById("hdr").style.display="none";
+  document.getElementById("app").innerHTML=
+    '<div style="max-width:420px;margin:80px auto;text-align:center">'+
+    '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEMAAAA4CAYAAACmL0VxAAAZk0lEQVR42s16e3idVZX3b+293s45Obk1TZv0BjQkaa5tA7FUMC1QW6YC6nCqCH4y6uDMozh+MM58Xh7S4Kcyg44fip/aARSEERLEPiAIApYUbC1t6Mm1bdKWtrT2kibN5Vy" alt="logo" style="height:60px;margin-bottom:20px"><br>'+
+    '<h1 style="font-size:22px;margin-bottom:8px;color:#1a171b">Daniel Moquet</h1>'+
+    '<p style="color:#888;margin-bottom:30px">Choisissez votre société</p>'+
+    Object.keys(SOCIETES).map(function(k){
+      var s=SOCIETES[k];
+      return'<a href="?s='+k+'" style="display:block;margin:10px auto;max-width:300px;padding:16px 24px;background:#34943f;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px">'+
+        s.nom+'<div style="font-size:12px;font-weight:400;opacity:.8;margin-top:4px">'+s.lieu+'</div></a>';
+    }).join("")+
+    '</div>';
+  throw new Error("STOP");
+}
+document.title=SOC_CFG.nom+" – Daniel Moquet";
+
+/* manifest dynamique par société */
+(function(){
+  var m={name:SOC_CFG.nom+" - Daniel Moquet",short_name:SOC_CFG.short,description:"Gestion contrats - "+SOC_CFG.nom,
+    start_url:"./index.html?s="+SOCIETE,display:"standalone",background_color:"#f4f6f4",theme_color:"#34943f",orientation:"any",
+    icons:[{src:"icons/icon-192.png",sizes:"192x192",type:"image/png",purpose:"any maskable"},{src:"icons/icon-512.png",sizes:"512x512",type:"image/png",purpose:"any maskable"}]};
+  var blob=new Blob([JSON.stringify(m)],{type:"application/json"});
+  var link=document.getElementById("manifest-link");
+  if(link)link.href=URL.createObjectURL(blob);
+})();
+
 /* ══ CONFIG ══ */
 var LOGO_SRC="data:image/png;base64,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";
 var SVCS=["Tonte de pelouse","Taille de haies","Déneigement","Arrosage automatique","Entretien massifs","Ramassage feuilles","Traitement pelouse","Élagage arbres","Nettoyage allées","Fertilisation","Nettoyage de pergolas","Traitement des allées"];
@@ -177,7 +213,7 @@ var S={
 };
 
 /* ══ PERSISTENCE ══ */
-var SK="babad_dmj_v5";
+var SK=SOCIETE+"_dmj_v5";
 var _syncTimer=null;
 function saveD(){
   try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:Date.now()}));}catch(e){}
@@ -189,9 +225,9 @@ function loadD(){try{var r=localStorage.getItem(SK);if(!r)return false;var d=JSO
   return d.ts?new Date(d.ts).toLocaleString("fr-FR"):"?";}catch(e){return false;}}
 
 /* ══ CLOUD SYNC (GitHub Gist) ══ */
-var SYNC_GIST_ID=localStorage.getItem("babad_gist_id")||"";
-var SYNC_TOKEN=localStorage.getItem("babad_gh_token")||"";
-var SYNC_FILE="babad-sync.json";
+var SYNC_GIST_ID=localStorage.getItem(SOCIETE+"_gist_id")||"";
+var SYNC_TOKEN=localStorage.getItem(SOCIETE+"_gh_token")||"";
+var SYNC_FILE=SOCIETE+"-sync.json";
 var _syncSt="idle";
 
 function syncPush(){
@@ -250,15 +286,15 @@ function syncSetup(){
   var gid=prompt("Gist ID :",SYNC_GIST_ID);if(gid===null)return;
   var tok=prompt("GitHub Token :",SYNC_TOKEN);if(tok===null)return;
   SYNC_GIST_ID=gid.trim();SYNC_TOKEN=tok.trim();
-  localStorage.setItem("babad_gist_id",SYNC_GIST_ID);
-  localStorage.setItem("babad_gh_token",SYNC_TOKEN);
+  localStorage.setItem(SOCIETE+"_gist_id",SYNC_GIST_ID);
+  localStorage.setItem(SOCIETE+"_gh_token",SYNC_TOKEN);
   if(SYNC_GIST_ID&&SYNC_TOKEN){syncPull().then(function(){syncPush();});}
   showToast("☁️ Sync configurée","#34943f");
 }
 function exportD(){
   var b=new Blob([JSON.stringify({v:3,ts:new Date().toLocaleString("fr-FR"),sal:S.sal,jrd:S.jrd,rbt:S.rbt},null,2)],{type:"application/json"});
   var a=document.createElement("a"),dt=new Date(),ds=dt.getFullYear()+"-"+(dt.getMonth()+1)+"-"+dt.getDate();
-  a.href=URL.createObjectURL(b);a.download="babad-dmj-"+ds+".json";a.click();
+  a.href=URL.createObjectURL(b);a.download=SOCIETE+"-dmj-"+ds+".json";a.click();
   showToast("✅ Sauvegarde exportée !","#34943f");
 }
 function importD(){
@@ -320,7 +356,7 @@ function renderHeader(){
     return'<button class="nb'+on+'" onclick="goTab(\''+t[0]+'\')">'+( m?t[1]:t[2])+dot+"</button>";
   }).join("");
   document.getElementById("hdr").innerHTML=
-    '<div class="logo"><img src="'+LOGO_SRC+'" alt="logo"><div><div class="logo-t">Sarl Babad</div>'+(m?"":'<div class="logo-s">St André de Bagé · Daniel Moquet signe vos jardins</div>')+"</div></div>"+
+    '<div class="logo"><img src="'+LOGO_SRC+'" alt="logo"><div><div class="logo-t">'+esc(SOC_CFG.nom)+'</div>'+(m?"":'<div class="logo-s">'+esc(SOC_CFG.lieu)+' · Daniel Moquet signe vos jardins</div>')+"</div></div>"+
     "<nav>"+nav+"</nav>"+
     '<div style="display:flex;gap:8px;align-items:center">'+
     '<button class="hbtn" onclick="addMain()">'+(m?"+":addLbl)+"</button>"+

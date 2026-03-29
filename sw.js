@@ -1,4 +1,4 @@
-var CACHE_NAME = 'babad-dm-v2';
+var CACHE_NAME = 'babad-dm-v3';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -37,7 +37,7 @@ self.addEventListener('fetch', function(event) {
     return;
   }
   event.respondWith(
-    caches.match(event.request).then(function(response) {
+    caches.match(event.request, {ignoreSearch: true}).then(function(response) {
       if (response) {
         return response;
       }
