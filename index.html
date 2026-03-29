@@ -981,8 +981,18 @@ function pgRForm(){
 
 /* ══ INIT ══ */
 var _resizeT=null;
+var _inputFocused=false;
+document.addEventListener("focusin",function(e){
+  var t=e.target&&e.target.tagName;
+  if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")_inputFocused=true;
+});
+document.addEventListener("focusout",function(){
+  setTimeout(function(){_inputFocused=false;},500);
+});
 window.addEventListener("resize",function(){
+  if(_inputFocused)return;
   if(document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA"||document.activeElement.tagName==="SELECT"))return;
+  if(S.jView==="form"||S.rView==="form"||S.sView==="form"||S.showIF||S.showRIF)return;
   clearTimeout(_resizeT);_resizeT=setTimeout(render,300);
 });
 S.sal=JSON.parse(JSON.stringify(SEED_SAL));
