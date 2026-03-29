@@ -944,7 +944,11 @@ function pgRForm(){
 }
 
 /* ══ INIT ══ */
-window.addEventListener("resize",function(){render();});
+var _resizeT=null;
+window.addEventListener("resize",function(){
+  if(document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA"||document.activeElement.tagName==="SELECT"))return;
+  clearTimeout(_resizeT);_resizeT=setTimeout(render,300);
+});
 S.sal=JSON.parse(JSON.stringify(SEED_SAL));
 S.jrd=JSON.parse(JSON.stringify(SEED_JRD));
 S.rbt=JSON.parse(JSON.stringify(SEED_RBT));
