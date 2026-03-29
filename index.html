@@ -178,11 +178,83 @@ var S={
 
 /* ══ PERSISTENCE ══ */
 var SK="babad_dmj_v5";
-function saveD(){try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:Date.now()}));}catch(e){}}
+var _syncTimer=null;
+function saveD(){
+  try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:Date.now()}));}catch(e){}
+  if(SYNC_GIST_ID&&SYNC_TOKEN){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncPush,5000);}
+}
 function loadD(){try{var r=localStorage.getItem(SK);if(!r)return false;var d=JSON.parse(r);if(d.sal)S.sal=d.sal;
   if(d.jrd){S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});}
   if(d.rbt){S.rbt=d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;});}
   return d.ts?new Date(d.ts).toLocaleString("fr-FR"):"?";}catch(e){return false;}}
+
+/* ══ CLOUD SYNC (GitHub Gist) ══ */
+var SYNC_GIST_ID=localStorage.getItem("babad_gist_id")||"";
+var SYNC_TOKEN=localStorage.getItem("babad_gh_token")||"";
+var SYNC_FILE="babad-sync.json";
+var _syncSt="idle";
+
+function syncPush(){
+  if(!SYNC_GIST_ID||!SYNC_TOKEN)return;
+  _syncSt="syncing";renderSyncBadge();
+  var payload={};
+  payload[SYNC_FILE]={content:JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:Date.now()},null,2)};
+  fetch("https://api.github.com/gists/"+SYNC_GIST_ID,{
+    method:"PATCH",
+    headers:{"Authorization":"Bearer "+SYNC_TOKEN,"Content-Type":"application/json"},
+    body:JSON.stringify({files:payload})
+  }).then(function(r){
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    _syncSt="ok";renderSyncBadge();
+  }).catch(function(e){
+    _syncSt="error";renderSyncBadge();
+    showToast("❌ Erreur sync : "+e.message,"#c0392b");
+  });
+}
+
+function syncPull(){
+  if(!SYNC_GIST_ID||!SYNC_TOKEN)return Promise.resolve();
+  _syncSt="syncing";renderSyncBadge();
+  return fetch("https://api.github.com/gists/"+SYNC_GIST_ID,{
+    headers:{"Authorization":"Bearer "+SYNC_TOKEN}
+  }).then(function(r){
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return r.json();
+  }).then(function(gist){
+    var f=gist.files[SYNC_FILE];
+    if(!f||!f.content||f.content==="{}"){_syncSt="ok";renderSyncBadge();return;}
+    var d=JSON.parse(f.content);
+    if(!d.ts){_syncSt="ok";renderSyncBadge();return;}
+    var localTs=0;
+    try{var loc=JSON.parse(localStorage.getItem(SK));localTs=loc&&loc.ts?loc.ts:0;}catch(e){}
+    if(localTs>d.ts){_syncSt="ok";renderSyncBadge();return;}
+    if(d.sal)S.sal=d.sal;
+    if(d.jrd)S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});
+    if(d.rbt)S.rbt=d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;});
+    saveD();render();
+    _syncSt="ok";renderSyncBadge();
+    showToast("☁️ Données cloud chargées","#34943f");
+  }).catch(function(e){
+    _syncSt="error";renderSyncBadge();
+    showToast("❌ Erreur sync : "+e.message,"#c0392b");
+  });
+}
+
+function renderSyncBadge(){
+  var el=document.getElementById("sync-badge");if(!el)return;
+  var icons={idle:"☁️",syncing:"⏳",ok:"✅",error:"❌"};
+  el.textContent=icons[_syncSt]||"☁️";
+}
+
+function syncSetup(){
+  var gid=prompt("Gist ID :",SYNC_GIST_ID);if(gid===null)return;
+  var tok=prompt("GitHub Token :",SYNC_TOKEN);if(tok===null)return;
+  SYNC_GIST_ID=gid.trim();SYNC_TOKEN=tok.trim();
+  localStorage.setItem("babad_gist_id",SYNC_GIST_ID);
+  localStorage.setItem("babad_gh_token",SYNC_TOKEN);
+  if(SYNC_GIST_ID&&SYNC_TOKEN){syncPull().then(function(){syncPush();});}
+  showToast("☁️ Sync configurée","#34943f");
+}
 function exportD(){
   var b=new Blob([JSON.stringify({v:3,ts:new Date().toLocaleString("fr-FR"),sal:S.sal,jrd:S.jrd,rbt:S.rbt},null,2)],{type:"application/json"});
   var a=document.createElement("a"),dt=new Date(),ds=dt.getFullYear()+"-"+(dt.getMonth()+1)+"-"+dt.getDate();
@@ -250,8 +322,14 @@ function renderHeader(){
   document.getElementById("hdr").innerHTML=
     '<div class="logo"><img src="'+LOGO_SRC+'" alt="logo"><div><div class="logo-t">Sarl Babad</div>'+(m?"":'<div class="logo-s">St André de Bagé · Daniel Moquet signe vos jardins</div>')+"</div></div>"+
     "<nav>"+nav+"</nav>"+
-    '<div style="display:flex;gap:8px">'+
+    '<div style="display:flex;gap:8px;align-items:center">'+
     '<button class="hbtn" onclick="addMain()">'+(m?"+":addLbl)+"</button>"+
+    (SYNC_TOKEN?
+      '<button onclick="syncPush()" title="Envoyer vers le cloud" style="background:#0366d6;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px"><span id="sync-badge">☁️</span>⬆</button>'+
+      '<button onclick="syncPull()" title="Récupérer du cloud" style="background:#6f42c1;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px">☁️⬇</button>'
+    :
+      '<button onclick="syncSetup()" title="Configurer sync cloud" style="background:#0366d6;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px">☁️⚙️</button>'
+    )+
     '<button onclick="exportD()" title="Exporter sauvegarde" style="background:#34943f;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:15px">💾</button>'+
     '<button onclick="importD()" title="Restaurer sauvegarde" style="background:#555;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:15px">📂</button>'+
     "</div>";
@@ -873,6 +951,7 @@ S.rbt=JSON.parse(JSON.stringify(SEED_RBT));
 var loaded=loadD();
 render();
 if(loaded)showToast("✅ Données chargées ("+loaded+")","#34943f");
+if(SYNC_GIST_ID&&SYNC_TOKEN){setTimeout(function(){syncPull();},1500);}
 
 </script>
 <script>

@@ -1,4 +1,4 @@
-var CACHE_NAME = 'babad-dm-v1';
+var CACHE_NAME = 'babad-dm-v2';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -32,6 +32,10 @@ self.addEventListener('activate', function(event) {
 });
 
 self.addEventListener('fetch', function(event) {
+  if (event.request.url.indexOf('api.github.com') !== -1) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then(function(response) {
       if (response) {
