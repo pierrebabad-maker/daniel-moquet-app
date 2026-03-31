@@ -329,6 +329,13 @@ function importD(){
 var _tt=null;
 function showToast(msg,color){var t=document.getElementById("toast");if(!t)return;t.textContent=msg;t.style.background=color||"#34943f";t.style.display="block";clearTimeout(_tt);_tt=setTimeout(function(){t.style.display="none";},3000);}
 
+function restoreFocus(id){
+  setTimeout(function(){
+    var el=document.getElementById(id);
+    if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}
+  },0);
+}
+
 /* ══ RENDER ══ */
 var _sv=null;
 function render(){
@@ -768,7 +775,7 @@ function pgSalForm(){
 function pgJList(){
   var filtered=S.jrd.filter(function(c){var q=S.jSrc.toLowerCase();return(c.client.toLowerCase().indexOf(q)>=0||c.adresse.toLowerCase().indexOf(q)>=0)&&(S.jFlt==="tous"||c.statut===S.jFlt);});
   var head='<div class="lhdr"><h1 class="ptitle" style="margin:0">🌿 Contrats jardins</h1>'+
-    '<div style="display:flex;gap:10px;flex-wrap:wrap"><input class="inp" placeholder="🔍 Client..." value="'+esc(S.jSrc)+'" oninput="S.jSrc=this.value;render()" style="width:'+(mob()?"100%":"220px")+'">'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><input id="j-search" class="inp" placeholder="🔍 Client..." value="'+esc(S.jSrc)+'" oninput="S.jSrc=this.value;render();restoreFocus(\'j-search\')" style="width:'+(mob()?"100%":"220px")+'">'+
     '<select class="inp" style="width:auto" onchange="S.jFlt=this.value;render()">'+stFlt(S.jFlt)+"</select></div></div>";
   if(!filtered.length)return head+'<div class="empty"><div style="font-size:48px">🌿</div><p>Aucun contrat</p></div>';
   if(mob())return head+filtered.map(function(c){
@@ -902,7 +909,7 @@ function pgJForm(){
 function pgRList(){
   var filtered=S.rbt.filter(function(c){var q=S.rSrc.toLowerCase();return(c.client.toLowerCase().indexOf(q)>=0||c.modele.toLowerCase().indexOf(q)>=0)&&(S.rFlt==="tous"||c.statut===S.rFlt);});
   var head='<div class="lhdr"><h1 class="ptitle" style="margin:0">🤖 Location robots</h1>'+
-    '<div style="display:flex;gap:10px;flex-wrap:wrap"><input class="inp" placeholder="🔍 Client..." value="'+esc(S.rSrc)+'" oninput="S.rSrc=this.value;render()" style="width:'+(mob()?"100%":"220px")+'">'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><input id="r-search" class="inp" placeholder="🔍 Client..." value="'+esc(S.rSrc)+'" oninput="S.rSrc=this.value;render();restoreFocus(\'r-search\')" style="width:'+(mob()?"100%":"220px")+'">'+
     '<select class="inp" style="width:auto" onchange="S.rFlt=this.value;render()">'+stFlt(S.rFlt)+"</select></div></div>";
   if(!filtered.length)return head+'<div class="empty"><div style="font-size:48px">🤖</div><p>Aucun contrat</p></div>';
   if(mob())return head+filtered.map(function(c){return'<div class="jmob" style="border-left:4px solid '+(ST[c.statut]||ST.actif).c+'" onclick="rOpenDetail('+c.id+')">'+
