@@ -653,7 +653,7 @@ function pgDash(){
     '<div class="mrbox" style="background:#f9fdf9;border:1px solid #e8f5e9"><div style="font-size:11px;color:#888;margin-bottom:4px">CA TOTAL</div><div style="font-size:20px;font-weight:800">'+N(caJ)+" €</div></div>"+
     '<div class="mrbox" style="background:#fff8f0;border:1px solid #ffe0b2"><div style="font-size:11px;color:#888;margin-bottom:4px">COÛTS MO</div><div style="font-size:20px;font-weight:800;color:#b5651d">'+N(costsJ)+" €</div></div>"+
     '<div class="mrbox" style="background:'+(mJ>=0?"#d8f3dc":"#fde8e8")+';border:1px solid '+(mJ>=0?"#95d5b2":"#f5a0a0")+'"><div style="font-size:11px;color:#888;margin-bottom:4px">MARGE</div><div style="font-size:20px;font-weight:800;color:'+mc+'">'+N(mJ)+' €</div><div style="font-size:13px;font-weight:700;color:'+mc+'">'+mpJ+"%</div></div>"+
-    "</div>"+pbar(mpJ)+"</div>";
+    "</div></div>";
 
   var relH='<div class="card" style="background:'+(rel.length?"#fff8f0":"#fff")+';border:2px solid '+(rel.length?"#f0a500":"#e8f5e9")+';margin-bottom:16px">'+
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:'+(rel.length?14:0)+'px"><span style="font-size:20px">🔔</span><div style="font-size:15px;font-weight:700">Relances — expirant dans 30 jours</div>'+(rel.length?'<span class="bdg" style="background:#e74c3c;color:#fff">'+rel.length+"</span>":"")+"</div>";
@@ -675,7 +675,7 @@ function pgDash(){
       return'<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:4px">'+
         '<span style="font-size:13px;font-weight:600">'+esc(c.client)+"</span>"+
         '<div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;font-weight:700;color:'+(me>=0?"#34943f":"#c0392b")+'">'+N(me)+' €</span>'+rpill(c.fin)+"</div>"+
-        "</div>"+pbar(pct)+passBar((c.iv||[]).length,c.passages_prevus)+"</div>";
+        "</div></div>";
     }).join("")+"</div>";
 
   var rA=S.rbt.filter(function(r){return r.statut==="actif";});
@@ -683,8 +683,7 @@ function pgDash(){
     (!rA.length?'<div style="color:#aaa;font-size:14px">Aucun robot en location</div>':
     rA.map(function(c){return'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;gap:8px" onclick="goTab(\'robots\');rOpenDetail('+c.id+')">'+
       '<div style="min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.client)+'</div><div style="font-size:12px;color:#888">'+esc(c.modele)+" · fin "+fmtD(c.fin)+"</div></div>"+
-      '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0"><span style="font-weight:700">'+N(c.montant)+' €</span>'+rpill(c.fin)+"</div></div>"+
-      passBar((c.iv||[]).length,c.passages_prevus);}).join(""))+
+      '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0"><span style="font-weight:700">'+N(c.montant)+' €</span>'+rpill(c.fin)+"</div></div>";}).join(""))+
     "</div>";
 
   var rR=S.rbt.filter(function(c){return Number(c.prix_robot||0)+Number(c.prix_abri||0)+Number(c.prix_accessoires||0)>0;});
@@ -704,7 +703,7 @@ function pgDash(){
           (inv?'<span style="font-size:11px;color:#888">Invest : '+N(inv)+" €</span>":"")+
           (moIV?'<span style="font-size:11px;color:#888">MO : '+N(moIV)+" €</span>":"")+
           '<span style="font-size:11px;font-weight:700;color:'+mc2+'">Marge : '+N(marge)+" €</span>"+
-          rpill(c.fin)+"</div></div>"+pbar(pct)+"</div>";
+          rpill(c.fin)+"</div></div></div>";
       }).join("")+"</div>";
   }
 
