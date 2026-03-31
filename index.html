@@ -217,7 +217,7 @@ var SK=SOCIETE+"_dmj_v5";
 var _syncTimer=null;
 function saveD(){
   try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:Date.now()}));}catch(e){}
-  if(SYNC_GIST_ID&&SYNC_TOKEN){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncPush,5000);}
+  if(SYNC_GIST_ID&&SYNC_TOKEN){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncPush,2000);}
 }
 function loadD(){try{var r=localStorage.getItem(SK);if(!r)return false;var d=JSON.parse(r);if(d.sal)S.sal=d.sal;
   if(d.jrd){S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});}
@@ -248,9 +248,9 @@ function syncPush(){
   });
 }
 
-function syncPull(){
+function syncPull(silent){
   if(!SYNC_GIST_ID||!SYNC_TOKEN)return Promise.resolve();
-  _syncSt="syncing";renderSyncBadge();
+  if(!silent){_syncSt="syncing";renderSyncBadge();}
   return fetch("https://api.github.com/gists/"+SYNC_GIST_ID,{
     headers:{"Authorization":"Bearer "+SYNC_TOKEN}
   }).then(function(r){
@@ -263,18 +263,30 @@ function syncPull(){
     if(!d.ts){_syncSt="ok";renderSyncBadge();return;}
     var localTs=0;
     try{var loc=JSON.parse(localStorage.getItem(SK));localTs=loc&&loc.ts?loc.ts:0;}catch(e){}
-    if(localTs>d.ts){_syncSt="ok";renderSyncBadge();return;}
+    if(localTs>=d.ts){_syncSt="ok";renderSyncBadge();return;}
     if(d.sal)S.sal=d.sal;
     if(d.jrd)S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});
     if(d.rbt)S.rbt=d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;});
-    saveD();render();
+    try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:d.ts}));}catch(e){}
+    render();
     _syncSt="ok";renderSyncBadge();
-    showToast("☁️ Données cloud chargées","#34943f");
+    if(!silent)showToast("☁️ Données cloud chargées","#34943f");
   }).catch(function(e){
     _syncSt="error";renderSyncBadge();
-    showToast("❌ Erreur sync : "+e.message,"#c0392b");
+    if(!silent)showToast("❌ Erreur sync : "+e.message,"#c0392b");
   });
 }
+
+/* polling auto toutes les 30s + sync au retour sur l'app */
+var _pollTimer=null;
+function startPoll(){
+  if(!SYNC_GIST_ID||!SYNC_TOKEN)return;
+  clearInterval(_pollTimer);
+  _pollTimer=setInterval(function(){syncPull(true);},30000);
+}
+document.addEventListener("visibilitychange",function(){
+  if(!document.hidden&&SYNC_GIST_ID&&SYNC_TOKEN)syncPull(true);
+});
 
 function renderSyncBadge(){
   var el=document.getElementById("sync-badge");if(!el)return;
@@ -1001,7 +1013,7 @@ S.rbt=JSON.parse(JSON.stringify(SEED_RBT));
 var loaded=loadD();
 render();
 if(loaded)showToast("✅ Données chargées ("+loaded+")","#34943f");
-if(SYNC_GIST_ID&&SYNC_TOKEN){setTimeout(function(){syncPull();},1500);}
+if(SYNC_GIST_ID&&SYNC_TOKEN){setTimeout(function(){syncPull();startPoll();},1500);}
 
 </script>
 <script>
