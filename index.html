@@ -248,8 +248,15 @@ function syncPush(){
   });
 }
 
+function isEditing(){
+  return S.jView==="form"||S.rView==="form"||S.sView==="form"||S.showIF||S.showRIF||
+    (document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA"||document.activeElement.tagName==="SELECT"));
+}
+
 function syncPull(silent){
   if(!SYNC_GIST_ID||!SYNC_TOKEN)return Promise.resolve();
+  /* ne jamais écraser un formulaire en cours */
+  if(silent&&isEditing())return Promise.resolve();
   if(!silent){_syncSt="syncing";renderSyncBadge();}
   return fetch("https://api.github.com/gists/"+SYNC_GIST_ID,{
     headers:{"Authorization":"Bearer "+SYNC_TOKEN}
@@ -264,6 +271,8 @@ function syncPull(silent){
     var localTs=0;
     try{var loc=JSON.parse(localStorage.getItem(SK));localTs=loc&&loc.ts?loc.ts:0;}catch(e){}
     if(localTs>=d.ts){_syncSt="ok";renderSyncBadge();return;}
+    /* ne pas écraser si on est en train d'éditer (double check) */
+    if(isEditing()){_syncSt="ok";renderSyncBadge();return;}
     if(d.sal)S.sal=d.sal;
     if(d.jrd)S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});
     if(d.rbt)S.rbt=d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;});
