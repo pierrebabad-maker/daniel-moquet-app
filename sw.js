@@ -1,4 +1,4 @@
-var CACHE_NAME = 'babad-dm-v6';
+var CACHE_NAME = 'babad-dm-v7';
 var URLS_TO_CACHE = [
   './',
   './index.html',
