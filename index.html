@@ -106,7 +106,7 @@ td{padding:11px 14px;border-bottom:1px solid #f0f4f0;vertical-align:middle;font-
 
 /* ══ MULTI-SOCIÉTÉ ══ */
 var SOCIETES={
-  "babad":{nom:"Sarl Babad",lieu:"St André de Bagé",short:"Babad DM"}
+  "babad":{nom:"Sarl Babad",lieu:"St André de Bagé",short:"Babad DM",gist:"a81bd1952f168c2cfca5adffc8197093"}
 };
 var _urlParams=new URLSearchParams(window.location.search);
 var SOCIETE=_urlParams.get("s")||"";
@@ -187,6 +187,21 @@ function scEl(icon,lbl,val,color,bg){return'<div class="sc" style="background:'+
 function stOpts(cur){return Object.keys(ST).map(function(k){return'<option value="'+k+'"'+(cur===k?" selected":"")+">"+ST[k].l+"</option>";}).join("");}
 function fqOpts(cur){return["Mensuel","Trimestriel","Semestriel","Annuel"].map(function(f){return"<option"+(cur===f?" selected":"")+">"+f+"</option>";}).join("");}
 function stFlt(cur){return'<option value="tous"'+(cur==="tous"?" selected":"")+">Tous</option>"+Object.keys(ST).map(function(k){return'<option value="'+k+'"'+(cur===k?" selected":"")+">"+ST[k].l+"</option>";}).join("");}
+function triOpts(cur){
+  var opts=[["alpha","A→Z"],["alpha-desc","Z→A"],["debut","Date début ↑"],["debut-desc","Date début ↓"],["fin","Date fin ↑"],["fin-desc","Date fin ↓"]];
+  return opts.map(function(o){return'<option value="'+o[0]+'"'+(cur===o[0]?" selected":"")+">"+o[1]+"</option>";}).join("");
+}
+function sortList(arr,tri){
+  return arr.slice().sort(function(a,b){
+    if(tri==="alpha")return a.client.localeCompare(b.client);
+    if(tri==="alpha-desc")return b.client.localeCompare(a.client);
+    if(tri==="debut")return(a.debut||"").localeCompare(b.debut||"");
+    if(tri==="debut-desc")return(b.debut||"").localeCompare(a.debut||"");
+    if(tri==="fin")return(a.fin||"").localeCompare(b.fin||"");
+    if(tri==="fin-desc")return(b.fin||"").localeCompare(a.fin||"");
+    return 0;
+  });
+}
 
 /* ══ SEED DATA ══ */
 var SEED_SAL=[{"id":1774590641030,"prenom":"Alexandre","nom":"SCHOLL","statut":"Sous-traitant","taux":30,"actif":true},{"id":1774590670047,"prenom":"Ludovic","nom":"PETAVI","statut":"Sous-traitant","taux":30,"actif":true},{"id":1774590697287,"prenom":"Kilian","nom":"CLOUVET","statut":"Ouvrier","taux":54,"actif":true},{"id":1774590733605,"prenom":"Manon","nom":"CHARPIGNY","statut":"Apprenti","taux":27,"actif":true},{"id":1774590752145,"prenom":"Axel","nom":"BOUCHOUX","statut":"Apprenti","taux":27,"actif":false},{"id":1774590769804,"prenom":"Loïc","nom":"GUICHON","statut":"Apprenti","taux":27,"actif":false},{"id":1774593872386,"prenom":"Stagiaire","nom":"1","statut":"Stagiaire","taux":0,"actif":true},{"id":1774596061854,"prenom":"Pierre","nom":"BABAD","statut":"Ouvrier","taux":54,"actif":true}];
@@ -197,13 +212,13 @@ var SEED_RBT=[{"id":1774600656312,"iv":[],"client":"PINSARD","adresse":"","tel":
 var S={
   tab:"dashboard",
   sal:null,sView:"list",sEditId:null,sF:{prenom:"",nom:"",statut:"Ouvrier",taux:20,actif:true},sDelId:null,
-  jrd:null,jView:"list",jActId:null,jEditId:null,jSrc:"",jFlt:"tous",
+  jrd:null,jView:"list",jActId:null,jEditId:null,jSrc:"",jFlt:"tous",jTri:"alpha",
   jF:{client:"",adresse:"",tel:"",email:"",services:[],debut:"",fin:"",montant:"",statut:"actif",passages_prevus:"",notes:""},
   jDelId:null,
   showIF:false,iEditId:null,
   iF:{date:"",types:[],commentaire:"",emps:[{sid:0,label:"",h:0,hh:0,mm:0,taux:0}]},
   iDelId:null,
-  rbt:null,rView:"list",rActId:null,rEditId:null,rSrc:"",rFlt:"tous",
+  rbt:null,rView:"list",rActId:null,rEditId:null,rSrc:"",rFlt:"tous",rTri:"alpha",
   rF:{client:"",adresse:"",tel:"",email:"",modele:"",serie:"",debut:"",fin:"",montant:"",statut:"actif",install:"",prix_robot:"",prix_abri:"",prix_accessoires:"",passages_prevus:"",notes:""},
   rDelId:null,
   showRIF:false,rIEditId:null,
@@ -225,7 +240,7 @@ function loadD(){try{var r=localStorage.getItem(SK);if(!r)return false;var d=JSO
   return d.ts?new Date(d.ts).toLocaleString("fr-FR"):"?";}catch(e){return false;}}
 
 /* ══ CLOUD SYNC (GitHub Gist) ══ */
-var SYNC_GIST_ID=localStorage.getItem(SOCIETE+"_gist_id")||"";
+var SYNC_GIST_ID=SOC_CFG.gist||localStorage.getItem(SOCIETE+"_gist_id")||"";
 var SYNC_TOKEN=localStorage.getItem(SOCIETE+"_gh_token")||"";
 var SYNC_FILE=SOCIETE+"-sync.json";
 var _syncSt="idle";
@@ -304,13 +319,13 @@ function renderSyncBadge(){
 }
 
 function syncSetup(){
-  var gid=prompt("Gist ID :",SYNC_GIST_ID);if(gid===null)return;
-  var tok=prompt("GitHub Token :",SYNC_TOKEN);if(tok===null)return;
-  SYNC_GIST_ID=gid.trim();SYNC_TOKEN=tok.trim();
-  localStorage.setItem(SOCIETE+"_gist_id",SYNC_GIST_ID);
+  var tok=prompt("Collez votre token GitHub (github_pat_...) :",SYNC_TOKEN);
+  if(tok===null)return;
+  SYNC_TOKEN=tok.trim();
   localStorage.setItem(SOCIETE+"_gh_token",SYNC_TOKEN);
-  if(SYNC_GIST_ID&&SYNC_TOKEN){syncPull().then(function(){syncPush();});}
+  if(SYNC_GIST_ID&&SYNC_TOKEN){syncPull().then(function(){syncPush();startPoll();});}
   showToast("☁️ Sync configurée","#34943f");
+  render();
 }
 function exportD(){
   var b=new Blob([JSON.stringify({v:3,ts:new Date().toLocaleString("fr-FR"),sal:S.sal,jrd:S.jrd,rbt:S.rbt},null,2)],{type:"application/json"});
@@ -773,10 +788,11 @@ function pgSalForm(){
 
 /* ── JARDINS LIST ── */
 function pgJList(){
-  var filtered=S.jrd.filter(function(c){var q=S.jSrc.toLowerCase();return(c.client.toLowerCase().indexOf(q)>=0||c.adresse.toLowerCase().indexOf(q)>=0)&&(S.jFlt==="tous"||c.statut===S.jFlt);});
+  var filtered=sortList(S.jrd.filter(function(c){var q=S.jSrc.toLowerCase();return(c.client.toLowerCase().indexOf(q)>=0||c.adresse.toLowerCase().indexOf(q)>=0)&&(S.jFlt==="tous"||c.statut===S.jFlt);}),S.jTri);
   var head='<div class="lhdr"><h1 class="ptitle" style="margin:0">🌿 Contrats jardins</h1>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap"><input id="j-search" class="inp" placeholder="🔍 Client..." value="'+esc(S.jSrc)+'" oninput="S.jSrc=this.value;render();restoreFocus(\'j-search\')" style="width:'+(mob()?"100%":"220px")+'">'+
-    '<select class="inp" style="width:auto" onchange="S.jFlt=this.value;render()">'+stFlt(S.jFlt)+"</select></div></div>";
+    '<select class="inp" style="width:auto" onchange="S.jFlt=this.value;render()">'+stFlt(S.jFlt)+"</select>"+
+    '<select class="inp" style="width:auto" onchange="S.jTri=this.value;render()">'+triOpts(S.jTri)+"</select></div></div>";
   if(!filtered.length)return head+'<div class="empty"><div style="font-size:48px">🌿</div><p>Aucun contrat</p></div>';
   if(mob())return head+filtered.map(function(c){
     var ca=caC(c),me=ca-coutAll(c.iv||[]),pct=ca>0?Math.round((me/ca)*100):0;
@@ -907,10 +923,11 @@ function pgJForm(){
 
 /* ── ROBOTS LIST ── */
 function pgRList(){
-  var filtered=S.rbt.filter(function(c){var q=S.rSrc.toLowerCase();return(c.client.toLowerCase().indexOf(q)>=0||c.modele.toLowerCase().indexOf(q)>=0)&&(S.rFlt==="tous"||c.statut===S.rFlt);});
+  var filtered=sortList(S.rbt.filter(function(c){var q=S.rSrc.toLowerCase();return(c.client.toLowerCase().indexOf(q)>=0||c.modele.toLowerCase().indexOf(q)>=0)&&(S.rFlt==="tous"||c.statut===S.rFlt);}),S.rTri);
   var head='<div class="lhdr"><h1 class="ptitle" style="margin:0">🤖 Location robots</h1>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap"><input id="r-search" class="inp" placeholder="🔍 Client..." value="'+esc(S.rSrc)+'" oninput="S.rSrc=this.value;render();restoreFocus(\'r-search\')" style="width:'+(mob()?"100%":"220px")+'">'+
-    '<select class="inp" style="width:auto" onchange="S.rFlt=this.value;render()">'+stFlt(S.rFlt)+"</select></div></div>";
+    '<select class="inp" style="width:auto" onchange="S.rFlt=this.value;render()">'+stFlt(S.rFlt)+"</select>"+
+    '<select class="inp" style="width:auto" onchange="S.rTri=this.value;render()">'+triOpts(S.rTri)+"</select></div></div>";
   if(!filtered.length)return head+'<div class="empty"><div style="font-size:48px">🤖</div><p>Aucun contrat</p></div>';
   if(mob())return head+filtered.map(function(c){return'<div class="jmob" style="border-left:4px solid '+(ST[c.statut]||ST.actif).c+'" onclick="rOpenDetail('+c.id+')">'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'+
