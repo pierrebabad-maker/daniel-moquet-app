@@ -306,7 +306,7 @@ var _pollTimer=null;
 function startPoll(){
   if(!SYNC_GIST_ID||!SYNC_TOKEN)return;
   clearInterval(_pollTimer);
-  _pollTimer=setInterval(function(){syncPull(true);},30000);
+  _pollTimer=setInterval(function(){syncPull(true);},120000);
 }
 document.addEventListener("visibilitychange",function(){
   if(!document.hidden&&SYNC_GIST_ID&&SYNC_TOKEN)syncPull(true);
