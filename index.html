@@ -12,6 +12,7 @@
 <link id="manifest-link" rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>*{box-sizing:border-box;margin:0;padding:0}
@@ -341,6 +342,74 @@ function importD(){
     r.readAsText(e.target.files[0]);
   };inp.click();
 }
+function exportXLS(){
+  if(typeof XLSX==="undefined"){showToast("❌ Librairie Excel non chargée","#c0392b");return;}
+  var wb=XLSX.utils.book_new();
+  var dt=new Date(),ds=dt.getDate()+"/"+(dt.getMonth()+1)+"/"+dt.getFullYear();
+
+  /* ── Feuille 1 : Contrats jardins ── */
+  var jRows=[["Client","Adresse","Téléphone","Email","Statut","Début","Fin","Montant €","CA Total €","Coût MO €","Marge €","Marge %","Passages prévus","Passages réalisés","Heures totales","Services","Notes"]];
+  (S.jrd||[]).forEach(function(c){
+    var ca=caC(c),cout=coutAll(c.iv||[]),marge=ca-cout,mp=ca>0?Math.round((marge/ca)*100):0;
+    jRows.push([c.client,c.adresse,c.tel,c.email,c.statut,c.debut,c.fin,Number(c.montant)||0,ca,cout,marge,mp,Number(c.passages_prevus)||0,(c.iv||[]).length,Math.round(totalH(c.iv||[])*100)/100,(c.services||[]).join(", "),c.notes||""]);
+  });
+  var wsJ=XLSX.utils.aoa_to_sheet(jRows);
+  wsJ["!cols"]=[{wch:20},{wch:25},{wch:14},{wch:22},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:8},{wch:10},{wch:10},{wch:10},{wch:30},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,wsJ,"Contrats jardins");
+
+  /* ── Feuille 2 : Interventions jardins ── */
+  var iRows=[["Client","Date","Type(s)","Commentaire","Employé","Statut employé","Heures","Taux €/h","Coût €"]];
+  (S.jrd||[]).forEach(function(c){
+    (c.iv||[]).forEach(function(iv){
+      var types=(iv.types&&iv.types.length?iv.types:iv.type?[iv.type]:[]).join(", ");
+      (iv.emps||[]).forEach(function(e){
+        iRows.push([c.client,iv.date,types,iv.commentaire||"",e.label||"","",Math.round((e.h||0)*100)/100,e.taux||0,Math.round((e.h||0)*(e.taux||0)*100)/100]);
+      });
+      if(!(iv.emps&&iv.emps.length))iRows.push([c.client,iv.date,types,iv.commentaire||"","","",0,0,0]);
+    });
+  });
+  var wsI=XLSX.utils.aoa_to_sheet(iRows);
+  wsI["!cols"]=[{wch:20},{wch:10},{wch:20},{wch:25},{wch:20},{wch:12},{wch:8},{wch:8},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,wsI,"Interventions jardins");
+
+  /* ── Feuille 3 : Contrats robots ── */
+  var rRows=[["Client","Adresse","Téléphone","Email","Modèle","N° Série","Statut","Début","Fin","Loyer €","Investissement €","Coût MO €","Marge €","Passages prévus","Passages réalisés","Notes"]];
+  (S.rbt||[]).forEach(function(c){
+    var inv=Number(c.prix_robot||0)+Number(c.prix_abri||0)+Number(c.prix_accessoires||0);
+    var cout=coutAll(c.iv||[]),ca=Number(c.montant||0),marge=ca-inv-cout;
+    rRows.push([c.client,c.adresse,c.tel,c.email,c.modele,c.serie,c.statut,c.debut,c.fin,ca,inv,cout,marge,Number(c.passages_prevus)||0,(c.iv||[]).length,c.notes||""]);
+  });
+  var wsR=XLSX.utils.aoa_to_sheet(rRows);
+  wsR["!cols"]=[{wch:20},{wch:25},{wch:14},{wch:22},{wch:25},{wch:16},{wch:10},{wch:10},{wch:10},{wch:8},{wch:12},{wch:10},{wch:10},{wch:10},{wch:10},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,wsR,"Contrats robots");
+
+  /* ── Feuille 4 : Interventions robots ── */
+  var riRows=[["Client","Modèle","Date","Type(s)","Commentaire","Employé","Heures","Taux €/h","Coût €"]];
+  (S.rbt||[]).forEach(function(c){
+    (c.iv||[]).forEach(function(iv){
+      var types=(iv.types&&iv.types.length?iv.types:iv.type?[iv.type]:[]).join(", ");
+      (iv.emps||[]).forEach(function(e){
+        riRows.push([c.client,c.modele,iv.date,types,iv.commentaire||"",e.label||"",Math.round((e.h||0)*100)/100,e.taux||0,Math.round((e.h||0)*(e.taux||0)*100)/100]);
+      });
+      if(!(iv.emps&&iv.emps.length))riRows.push([c.client,c.modele,iv.date,types,iv.commentaire||"","","",0,0,0]);
+    });
+  });
+  var wsRI=XLSX.utils.aoa_to_sheet(riRows);
+  wsRI["!cols"]=[{wch:20},{wch:25},{wch:10},{wch:20},{wch:25},{wch:20},{wch:8},{wch:8},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,wsRI,"Interventions robots");
+
+  /* ── Feuille 5 : Salariés ── */
+  var sRows=[["Prénom","Nom","Statut","Taux €/h","Situation"]];
+  (S.sal||[]).forEach(function(s){sRows.push([s.prenom,s.nom,s.statut,s.taux,s.actif!==false?"En poste":"Parti"]);});
+  var wsS=XLSX.utils.aoa_to_sheet(sRows);
+  wsS["!cols"]=[{wch:14},{wch:14},{wch:14},{wch:10},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,wsS,"Salariés");
+
+  var fn=SOCIETE+"-export-"+dt.getFullYear()+"-"+(dt.getMonth()+1)+"-"+dt.getDate()+".xlsx";
+  XLSX.writeFile(wb,fn);
+  showToast("✅ Export Excel généré !","#34943f");
+}
+
 var _tt=null;
 function showToast(msg,color){var t=document.getElementById("toast");if(!t)return;t.textContent=msg;t.style.background=color||"#34943f";t.style.display="block";clearTimeout(_tt);_tt=setTimeout(function(){t.style.display="none";},3000);}
 
@@ -732,6 +801,7 @@ function pgDash(){
   return'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">'+
     '<h1 class="ptitle" style="margin:0">Tableau de bord</h1>'+
     '<div style="display:flex;gap:8px">'+
+    '<button onclick="exportXLS()" class="btn" style="background:#1d6f42;color:#fff;font-size:12px;padding:7px 14px">📊 Export Excel</button>'+
     '<button onclick="exportD()" class="btn btn-p" style="font-size:12px;padding:7px 14px">💾 Exporter</button>'+
     '<button onclick="importD()" class="btn" style="background:#555;color:#fff;font-size:12px;padding:7px 14px">📂 Restaurer</button>'+
     "</div></div>"+
