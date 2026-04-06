@@ -231,7 +231,11 @@ var S={
 /* ══ PERSISTENCE ══ */
 var SK=SOCIETE+"_dmj_v5";
 var _syncTimer=null;
+var _lastSavedHash=""; /* hash des dernières données sauvegardées — ne met à jour le ts QUE si les données changent */
 function saveD(){
+  var h=JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt});
+  if(h===_lastSavedHash)return; /* rien n'a changé, ne pas rafraîchir le timestamp */
+  _lastSavedHash=h;
   try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:Date.now()}));}catch(e){}
   if(SYNC_GIST_ID&&SYNC_TOKEN){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncPush,2000);}
 }
@@ -293,6 +297,7 @@ function syncPull(silent){
     if(d.jrd)S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});
     if(d.rbt)S.rbt=d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;});
     try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:d.ts}));}catch(e){}
+    _lastSavedHash=JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt}); /* préserve le ts du Gist, évite re-save immédiat */
     render();
     _syncSt="ok";renderSyncBadge();
     if(!silent)showToast("☁️ Données cloud chargées","#34943f");
@@ -1113,6 +1118,12 @@ S.sal=JSON.parse(JSON.stringify(SEED_SAL));
 S.jrd=JSON.parse(JSON.stringify(SEED_JRD));
 S.rbt=JSON.parse(JSON.stringify(SEED_RBT));
 var loaded=loadD();
+if(!loaded){
+  /* Premier démarrage sans données locales : sauvegarder avec ts=0 pour que le cloud gagne toujours */
+  try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:0}));}catch(e){}
+}
+/* Capture le hash initial pour que render() ne crée pas de nouveau timestamp au démarrage */
+_lastSavedHash=JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt});
 render();
 if(loaded)showToast("✅ Données chargées ("+loaded+")","#34943f");
 if(SYNC_GIST_ID&&SYNC_TOKEN){setTimeout(function(){syncPull();startPoll();},1500);}
