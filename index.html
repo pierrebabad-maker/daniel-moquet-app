@@ -211,7 +211,7 @@ var SEED_RBT=[{"id":1774600656312,"iv":[],"client":"PINSARD","adresse":"","tel":
 
 /* ══ STATE ══ */
 var S={
-  tab:"dashboard",
+  tab:"dashboard",showHistory:false,
   sal:null,sView:"list",sEditId:null,sF:{prenom:"",nom:"",statut:"Ouvrier",taux:20,actif:true},sDelId:null,
   jrd:null,jView:"list",jActId:null,jEditId:null,jSrc:"",jFlt:"tous",jTri:"alpha",
   jF:{client:"",adresse:"",tel:"",email:"",services:[],debut:"",fin:"",montant:"",statut:"actif",passages_prevus:"",notes:""},
@@ -230,14 +230,42 @@ var S={
 
 /* ══ PERSISTENCE ══ */
 var SK=SOCIETE+"_dmj_v5";
+var HK=SK+"_history"; /* clé pour l'historique des versions (7 jours) */
 var _syncTimer=null;
-var _lastSavedHash=""; /* hash des dernières données sauvegardées — ne met à jour le ts QUE si les données changent */
+var _lastSavedHash="";
+var _pendingSync=false;
+try{_pendingSync=!!localStorage.getItem(SK+"_pending");}catch(e){}
+
+function saveHistory(){
+  try{
+    var now=Date.now();
+    var snap={ts:now,date:new Date(now).toLocaleString("fr-FR"),sal:S.sal,jrd:S.jrd,rbt:S.rbt};
+    var hist=[];try{hist=JSON.parse(localStorage.getItem(HK))||[];}catch(e2){}
+    var today=new Date().toDateString();
+    hist=hist.filter(function(h){return new Date(h.ts).toDateString()!==today;});
+    hist.unshift(snap);hist=hist.slice(0,7);
+    localStorage.setItem(HK,JSON.stringify(hist));
+  }catch(e){}
+}
+function showHistory(){S.showHistory=true;render();}
+function restoreHistory(ts){
+  try{
+    var hist=JSON.parse(localStorage.getItem(HK))||[];
+    var snap=hist.filter(function(h){return h.ts===ts;})[0];
+    if(!snap||!confirm("Restaurer la version du "+snap.date+" ?"))return;
+    if(snap.sal)S.sal=snap.sal;if(snap.jrd)S.jrd=snap.jrd;if(snap.rbt)S.rbt=snap.rbt;
+    S.showHistory=false;saveD();render();showToast("✅ Version du "+snap.date+" restaurée","#34943f");
+  }catch(e){showToast("❌ Erreur restauration","#c0392b");}
+}
+
 function saveD(){
   var h=JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt});
-  if(h===_lastSavedHash)return; /* rien n'a changé, ne pas rafraîchir le timestamp */
+  if(h===_lastSavedHash)return;
   _lastSavedHash=h;
   try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:Date.now()}));}catch(e){}
-  if(SYNC_GIST_ID&&SYNC_TOKEN){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncPush,2000);}
+  saveHistory();
+  if(SYNC_GIST_ID&&SYNC_TOKEN){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncPush,300);}
+  else{_pendingSync=true;try{localStorage.setItem(SK+"_pending","1");}catch(e){}}
 }
 function loadD(){try{var r=localStorage.getItem(SK);if(!r)return false;var d=JSON.parse(r);if(d.sal)S.sal=d.sal;
   if(d.jrd){S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});}
@@ -251,7 +279,7 @@ var SYNC_FILE=SOCIETE+"-sync.json";
 var _syncSt="idle";
 
 function syncPush(){
-  if(!SYNC_GIST_ID||!SYNC_TOKEN)return;
+  if(!SYNC_GIST_ID||!SYNC_TOKEN){_pendingSync=true;try{localStorage.setItem(SK+"_pending","1");}catch(e){}return;}
   _syncSt="syncing";renderSyncBadge();
   var payload={};
   payload[SYNC_FILE]={content:JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:Date.now()},null,2)};
@@ -262,9 +290,13 @@ function syncPush(){
   }).then(function(r){
     if(!r.ok)throw new Error("HTTP "+r.status);
     _syncSt="ok";renderSyncBadge();
+    _pendingSync=false;try{localStorage.removeItem(SK+"_pending");}catch(e){}
+    showToast("☁️ Synchronisé","#34943f");
   }).catch(function(e){
     _syncSt="error";renderSyncBadge();
-    showToast("❌ Erreur sync : "+e.message,"#c0392b");
+    _pendingSync=true;try{localStorage.setItem(SK+"_pending","1");}catch(ex){}
+    if(!navigator.onLine){showToast("📶 Hors ligne — sync en attente","#e67e22");}
+    else{showToast("❌ Erreur sync : "+e.message,"#c0392b");}
   });
 }
 
@@ -503,6 +535,22 @@ function renderModals(){
   if(S.sDelId)h+=modal("Supprimer ce salarié ?","Irréversible.","sDoDel()","S.sDelId=null;render()");
   if(S.iDelId)h+=modal("Supprimer cette intervention ?","Irréversible.","iDoDel()","S.iDelId=null;render()");
   if(S.rIDelId)h+=modal("Supprimer cette intervention robot ?","Irréversible.","rIDoDel()","S.rIDelId=null;render()");
+  if(S.showHistory){
+    var hist=[];try{hist=JSON.parse(localStorage.getItem(HK))||[];}catch(e){}
+    var hRows=hist.map(function(v){
+      var jrdCount=(v.jrd||[]).length,ivCount=(v.jrd||[]).reduce(function(s,c){return s+(c.iv||[]).length;},0);
+      return'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;gap:10px">'+
+        '<div><div style="font-weight:600;font-size:13px">'+esc(v.date)+"</div>"+
+        '<div style="font-size:11px;color:#888">'+jrdCount+" contrats jardins · "+ivCount+" interventions</div></div>"+
+        '<button class="btn btn-s" style="font-size:12px;padding:5px 10px;flex-shrink:0" onclick="restoreHistory('+v.ts+')">↩ Restaurer</button></div>';
+    }).join("");
+    h+='<div class="modal-ov" onclick="if(event.target===this){S.showHistory=false;render()}">'+
+      '<div class="modal-box" style="max-width:440px;text-align:left;max-height:80vh;overflow-y:auto">'+
+      '<h3 style="margin:0 0 4px;font-size:16px">📋 Historique des versions</h3>'+
+      '<p style="color:#888;font-size:12px;margin:0 0 14px">1 sauvegarde par jour, 7 jours maximum</p>'+
+      (hist.length?hRows:'<p style="color:#888;font-size:13px">Aucune version enregistrée pour l\'instant.<br>Les sauvegardes s\'accumulent automatiquement à chaque modification.</p>')+
+      '<div style="margin-top:16px;text-align:right"><button class="btn btn-s" onclick="S.showHistory=false;render()">Fermer</button></div></div></div>';
+  }
   if(S.reconConfirm){
     var rc=S.reconConfirm;
     var obj=rc.type==="jardin"?S.jrd.filter(function(c){return c.id===rc.id;})[0]:S.rbt.filter(function(c){return c.id===rc.id;})[0];
@@ -541,7 +589,76 @@ function getRelances(){
   return[].concat(
     S.jrd.filter(function(c){return c.statut==="actif";}).map(function(c){return{c:c,type:"jardin"};}),
     S.rbt.filter(function(c){return c.statut==="actif";}).map(function(c){return{c:c,type:"robot"};})
-  ).filter(function(x){var d=daysUntil(x.c.fin);return d!==null&&d<=30;}).sort(function(a,b){return a.c.fin.localeCompare(b.c.fin);});
+  ).filter(function(x){var d=daysUntil(x.c.fin);return d!==null&&d<=60;}).sort(function(a,b){return a.c.fin.localeCompare(b.c.fin);});
+}
+
+/* ══ NOTES VOCALES ══ */
+var _rec=null;
+function startVoice(target){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){showToast("⚠️ Dictée non supportée sur ce navigateur","#e67e22");return;}
+  if(_rec){_rec.stop();_rec=null;render();return;}
+  _rec=new SR();_rec.lang="fr-FR";_rec.continuous=true;_rec.interimResults=false;
+  _rec.onresult=function(e){
+    var txt=Array.from(e.results).slice(e.resultIndex).map(function(r){return r[0].transcript;}).join(" ").trim();
+    if(target==="iF"){S.iF.commentaire=(S.iF.commentaire?(S.iF.commentaire+" "):"")+txt;}
+    else if(target==="rIF"){S.rIF.commentaire=(S.rIF.commentaire?(S.rIF.commentaire+" "):"")+txt;}
+    var el=document.getElementById(target==="iF"?"if-commentaire":"rif-commentaire");
+    if(el)el.value=target==="iF"?S.iF.commentaire:S.rIF.commentaire;
+  };
+  _rec.onerror=function(e){showToast("❌ Micro : "+e.error,"#c0392b");_rec=null;render();};
+  _rec.onend=function(){_rec=null;render();};
+  _rec.start();render();
+  showToast("🎤 Dictée en cours — rappuyez pour arrêter","#34943f");
+}
+
+/* ══ PDF COMPTE-RENDU ══ */
+function pdfReport(type,id){
+  var c=type==="jardin"?S.jrd.filter(function(x){return x.id===id;})[0]:S.rbt.filter(function(x){return x.id===id;})[0];
+  if(!c)return;
+  var ivs=(c.iv||[]).slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+  var ca=type==="jardin"?caC(c):Number(c.montant||0);
+  var cout=coutAll(ivs),marge=ca-cout;
+  var ivRows=ivs.map(function(i){
+    var types=(i.types&&i.types.length?i.types:i.type?[i.type]:[]).join(", ");
+    var empsStr=(i.emps||[]).map(function(e){return esc(e.label||"")+" ("+fmtH(e.h||0)+")";}).join(", ");
+    return"<tr><td>"+fmtD(i.date)+"</td><td>"+esc(types)+"</td><td>"+esc(i.commentaire||"")+"</td><td>"+empsStr+"</td><td style='text-align:right'>"+N(coutIV(i))+" €</td></tr>";
+  }).join("");
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>CR '+esc(c.client)+'</title>'+
+    '<style>body{font-family:Arial,sans-serif;font-size:12px;color:#222;padding:24px;max-width:900px;margin:0 auto}'+
+    'h1{color:#34943f;font-size:20px;margin:0 0 4px}h2{font-size:13px;color:#666;font-weight:normal;margin:0 0 20px}'+
+    '.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #ef7d00;padding-bottom:12px;margin-bottom:16px}'+
+    '.logo{font-size:11px;text-align:right;color:#888;line-height:1.6}'+
+    '.summary{display:flex;gap:12px;margin:0 0 20px;flex-wrap:wrap}'+
+    '.box{background:#f4f6f4;border-radius:6px;padding:10px 16px;min-width:110px;border-left:3px solid #34943f}'+
+    '.box-l{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.04em}'+
+    '.box-v{font-size:16px;font-weight:800;margin-top:2px}'+
+    'table{width:100%;border-collapse:collapse;font-size:11px}'+
+    'th{background:#1a171b;color:#fff;padding:7px 10px;text-align:left}'+
+    'td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:top}'+
+    'tr:nth-child(even)td{background:#fafafa}'+
+    '.green{color:#34943f}.red{color:#c0392b}.orange{color:#b5651d}'+
+    '@media print{.noprint{display:none}button{display:none}}'+
+    '</style></head><body>'+
+    '<div class="hdr"><div><h1>'+(type==="robot"?"🤖 ":"🌿 ")+esc(c.client)+'</h1>'+
+    '<h2>'+(type==="robot"&&c.modele?esc(c.modele)+" · ":"")+
+    (c.adresse?esc(c.adresse)+" · ":"")+
+    'Contrat du '+(c.debut?fmtD(c.debut):"?")+(c.fin?" au "+fmtD(c.fin):"")+'</h2></div>'+
+    '<div class="logo"><strong>Sarl Babad – Daniel Moquet</strong><br>Généré le '+new Date().toLocaleDateString("fr-FR")+'</div></div>'+
+    '<div class="summary">'+
+    '<div class="box"><div class="box-l">Montant contrat</div><div class="box-v">'+N(ca)+" €</div></div>"+
+    '<div class="box"><div class="box-l">Interventions</div><div class="box-v">'+ivs.length+"</div></div>"+
+    '<div class="box"><div class="box-l">Heures totales</div><div class="box-v">'+fmtH(totalH(ivs))+"</div></div>"+
+    '<div class="box" style="border-left-color:#b5651d"><div class="box-l">Coût MO</div><div class="box-v orange">'+N(cout)+" €</div></div>"+
+    '<div class="box" style="border-left-color:'+(marge>=0?"#34943f":"#c0392b")+'"><div class="box-l">Marge</div><div class="box-v '+(marge>=0?"green":"red")+'">'+N(marge)+" € ("+(ca>0?Math.round((marge/ca)*100):0)+"%)</div></div>"+
+    "</div>"+
+    (ivs.length?
+      '<table><thead><tr><th>Date</th><th>Travaux</th><th>Commentaire</th><th>Salariés</th><th>Coût</th></tr></thead><tbody>'+ivRows+"</tbody></table>":
+      '<p style="color:#888;font-style:italic">Aucune intervention enregistrée.</p>')+
+    "<script>setTimeout(function(){window.print();},400);<\/script></body></html>";
+  var w=window.open("","_blank");
+  if(w){w.document.write(html);w.document.close();}
+  else{showToast("⚠️ Autorisez les pop-ups pour générer le PDF","#e67e22");}
 }
 
 /* ══ SALARIÉS ══ */
@@ -751,19 +868,33 @@ function pgDash(){
     '<div class="mrbox" style="background:'+(mJ>=0?"#d8f3dc":"#fde8e8")+';border:1px solid '+(mJ>=0?"#95d5b2":"#f5a0a0")+'"><div style="font-size:11px;color:#888;margin-bottom:4px">MARGE</div><div style="font-size:20px;font-weight:800;color:'+mc+'">'+N(mJ)+' €</div><div style="font-size:13px;font-weight:700;color:'+mc+'">'+mpJ+"%</div></div>"+
     "</div></div>";
 
-  var relH='<div class="card" style="background:'+(rel.length?"#fff8f0":"#fff")+';border:2px solid '+(rel.length?"#f0a500":"#e8f5e9")+';margin-bottom:16px">'+
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:'+(rel.length?14:0)+'px"><span style="font-size:20px">🔔</span><div style="font-size:15px;font-weight:700">Relances — expirant dans 30 jours</div>'+(rel.length?'<span class="bdg" style="background:#e74c3c;color:#fff">'+rel.length+"</span>":"")+"</div>";
-  if(!rel.length)relH+='<p style="color:#888;font-size:13px;margin:0">✅ Aucune relance à prévoir.</p>';
-  else rel.forEach(function(x){
-    var c=x.c,days=daysUntil(c.fin),urgent=days<=7;
-    var dtxt=days===0?"Aujourd'hui":days<0?"+"+Math.abs(days)+"j":"J-"+days;
+  var relUrgent=rel.filter(function(x){return daysUntil(x.c.fin)<=30;});
+  var relWarn=rel.filter(function(x){var d=daysUntil(x.c.fin);return d>30&&d<=60;});
+  function relRow(x){
+    var c=x.c,days=daysUntil(c.fin),urgent=days<=7,warn=days<=30;
+    var dtxt=days===0?"Aujourd'hui":days<0?"Expiré +"+Math.abs(days)+"j":"J-"+days;
+    var bgC=urgent?"#fff2f0":warn?"#fffbf2":"#fffde7";
+    var bdC=urgent?"#f5a0a0":warn?"#ffe0a0":"#fff9c4";
+    var txC=urgent?"#c0392b":warn?"#b5651d":"#7c6b00";
     var onclk=x.type==="jardin"?"goTab('jardins');jOpenDetail("+c.id+")":"goTab('robots');rOpenDetail("+c.id+")";
-    relH+='<div class="rl-row" style="background:'+(urgent?"#fff2f0":"#fffbf2")+';border:1px solid '+(urgent?"#f5a0a0":"#ffe0a0")+'" onclick="'+onclk+'">'+
+    return'<div class="rl-row" style="background:'+bgC+';border:1px solid '+bdC+'" onclick="'+onclk+'">'+
       '<div><div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span>'+(x.type==="robot"?"🤖":"🌿")+"</span><strong>"+esc(c.client)+'</strong><span class="sbdg" style="background:#eee;color:#555">'+(x.type==="robot"?"Robot":"Jardin")+"</span></div>"+
       '<div style="font-size:11px;color:#666">Fin : <strong>'+fmtD(c.fin)+"</strong></div></div>"+
-      '<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:800;color:'+(urgent?"#c0392b":"#b5651d")+';font-size:14px">'+dtxt+"</span>"+
-      '<a class="mail-btn" href="mailto:'+esc(c.email)+'" onclick="event.stopPropagation()">✉️ Relancer</a></div></div>';
-  });
+      '<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:800;color:'+txC+';font-size:14px">'+dtxt+"</span>"+
+      (c.email?'<a class="mail-btn" href="mailto:'+esc(c.email)+'" onclick="event.stopPropagation()">✉️ Relancer</a>':"")+
+      "</div></div>";
+  }
+  var relH='<div class="card" style="background:'+(relUrgent.length?"#fff8f0":relWarn.length?"#fffde7":"#fff")+';border:2px solid '+(relUrgent.length?"#f0a500":relWarn.length?"#ffe066":"#e8f5e9")+';margin-bottom:16px">'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:'+(rel.length?14:0)+'px">'+
+    '<span style="font-size:20px">🔔</span><div style="font-size:15px;font-weight:700">Alertes contrats expirant</div>'+
+    (relUrgent.length?'<span class="bdg" style="background:#e74c3c;color:#fff">'+relUrgent.length+" ≤30j</span>":"")+
+    (relWarn.length?'<span class="bdg" style="background:#e67e22;color:#fff">'+relWarn.length+" ≤60j</span>':"")+
+    "</div>";
+  if(!rel.length)relH+='<p style="color:#888;font-size:13px;margin:0">✅ Aucune relance à prévoir dans les 60 jours.</p>';
+  else{
+    if(relUrgent.length){relH+='<div style="font-size:11px;font-weight:700;color:#c0392b;text-transform:uppercase;margin-bottom:6px">🚨 Dans les 30 jours</div>';relUrgent.forEach(function(x){relH+=relRow(x);});}
+    if(relWarn.length){relH+='<div style="font-size:11px;font-weight:700;color:#e67e22;text-transform:uppercase;margin:'+(relUrgent.length?"14px":"0")+" 0 6px\">⚠️ Dans les 60 jours</div>";relWarn.forEach(function(x){relH+=relRow(x);});}
+  }
   relH+="</div>";
 
   var rentaJ='<div class="card">'+secLbl("Rentabilité jardins")+
@@ -806,7 +937,8 @@ function pgDash(){
   return'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">'+
     '<h1 class="ptitle" style="margin:0">Tableau de bord</h1>'+
     '<div style="display:flex;gap:8px">'+
-    '<button onclick="exportXLS()" class="btn" style="background:#1d6f42;color:#fff;font-size:12px;padding:7px 14px">📊 Export Excel</button>'+
+    '<button onclick="exportXLS()" class="btn" style="background:#1d6f42;color:#fff;font-size:12px;padding:7px 14px">📊 Excel</button>'+
+    '<button onclick="showHistory()" class="btn" style="background:#3b82f6;color:#fff;font-size:12px;padding:7px 14px">📋 Historique</button>'+
     '<button onclick="exportD()" class="btn btn-p" style="font-size:12px;padding:7px 14px">💾 Exporter</button>'+
     '<button onclick="importD()" class="btn" style="background:#555;color:#fff;font-size:12px;padding:7px 14px">📂 Restaurer</button>'+
     "</div></div>"+
@@ -922,6 +1054,7 @@ function pgJDetail(){
     '<div class="dacts">'+bdg(c.statut)+rpill(c.fin)+
     '<button class="btn btn-p" onclick="jOpenEdit('+c.id+')">✏️ Modifier</button>'+
     '<button class="btn" style="background:#34943f;color:#fff" onclick="S.jView=\'interventions\';render()">🔧 Interventions</button>'+
+    '<button class="btn" style="background:#7c3aed;color:#fff" onclick="pdfReport(\'jardin\','+c.id+')">📄 PDF</button>'+
     '<button class="btn btn-o" onclick="reconConfirm('+c.id+',\'jardin\')">🔄 Reconduire</button>'+
     '<button class="btn-rd" onclick="jDelConfirm('+c.id+')">🗑️</button></div></div>'+
     '<div class="pills4">'+passPill((c.iv||[]).length,c.passages_prevus)+pillEl("⏱","Heures",fmtH(totalH(c.iv||[])),"#34943f")+pillEl("💸","Coût MO",N(coutAll(c.iv||[]))+" €","#b5651d")+mPill(ca,c.iv||[])+"</div>"+
@@ -949,7 +1082,9 @@ function pgJIV(){
       '<div class="fl" style="margin-bottom:14px"><label>📅 Date *</label><input id="if-date" type="date" class="inp" value="'+(S.iF.date||"")+'" style="max-width:220px"></div>'+
       secLbl("🔧 Travaux réalisés")+
       '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">'+typBtns+"</div>"+
-      '<div class="fl" style="margin-bottom:14px"><label>💬 Commentaire</label><textarea id="if-commentaire" class="inp" rows="2" style="resize:vertical;font-family:inherit;min-height:56px">'+esc(S.iF.commentaire||"")+"</textarea></div>"+
+      '<div class="fl" style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:5px"><label style="margin:0">💬 Commentaire</label>'+
+      '<button onclick="startVoice(\'iF\')" style="background:'+(_rec?"#c0392b":"#f0f7f0")+';border:1px solid '+(_rec?"#c0392b":"#95d5b2")+';border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap">'+(_rec?"⏹ Arrêter":"🎤 Dicter")+"</button></div>"+
+      '<textarea id="if-commentaire" class="inp" rows="2" style="resize:vertical;font-family:inherit;min-height:56px">'+esc(S.iF.commentaire||"")+"</textarea></div>"+
       secLbl("👷 Salariés & temps")+
       buildEmpRows(S.iF,"if")+
       '<div class="factions"><button class="btn btn-s" onclick="iCancel()">Annuler</button><button class="btn btn-p" onclick="iSave()">'+(S.iEditId?"💾 Enregistrer":"✅ Ajouter")+"</button></div></div>";
@@ -1036,6 +1171,7 @@ function pgRDetail(){
     '<div class="dacts">'+bdg(c.statut)+rpill(c.fin)+
     '<button class="btn btn-p" onclick="rOpenEdit('+c.id+')">✏️ Modifier</button>'+
     '<button class="btn" style="background:#34943f;color:#fff" onclick="S.rView=\'interventions\';render()">🔧 Interventions ('+ivN+(ivP?"/"+ivP:"")+")  </button>"+
+    '<button class="btn" style="background:#7c3aed;color:#fff" onclick="pdfReport(\'robot\','+c.id+')">📄 PDF</button>'+
     '<button class="btn btn-o" onclick="reconConfirm('+c.id+',\'robot\')">🔄 Reconduire</button>'+
     '<button class="btn-rd" onclick="rDelConfirm('+c.id+')">🗑️</button></div></div>'+
     (inv?'<div style="margin-bottom:16px">'+secLbl("💰 Investissement matériel")+'<div class="g3">'+iboxEl("🤖","Prix robot",c.prix_robot?N(c.prix_robot)+" €":"—")+iboxEl("🏠","Prix abri",c.prix_abri?N(c.prix_abri)+" €":"—")+iboxEl("🔧","Accessoires",c.prix_accessoires?N(c.prix_accessoires)+" €":"—")+"</div>"+
@@ -1058,7 +1194,9 @@ function pgRIV(){
       '<div class="fl" style="margin-bottom:14px"><label>📅 Date *</label><input id="rif-date" type="date" class="inp" value="'+(S.rIF.date||"")+'" style="max-width:220px"></div>'+
       secLbl("🔧 Type d'intervention")+
       '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">'+rTypBtns+"</div>"+
-      '<div class="fl" style="margin-bottom:14px"><label>💬 Commentaire</label><textarea id="rif-commentaire" class="inp" rows="2" style="resize:vertical;font-family:inherit;min-height:56px">'+esc(S.rIF.commentaire||"")+"</textarea></div>"+
+      '<div class="fl" style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:5px"><label style="margin:0">💬 Commentaire</label>'+
+      '<button onclick="startVoice(\'rIF\')" style="background:'+(_rec?"#c0392b":"#f0f7f0")+';border:1px solid '+(_rec?"#c0392b":"#95d5b2")+';border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap">'+(_rec?"⏹ Arrêter":"🎤 Dicter")+"</button></div>"+
+      '<textarea id="rif-commentaire" class="inp" rows="2" style="resize:vertical;font-family:inherit;min-height:56px">'+esc(S.rIF.commentaire||"")+"</textarea></div>"+
       secLbl("👷 Salariés & temps")+
       buildEmpRows(S.rIF,"rif")+
       '<div class="factions"><button class="btn btn-s" onclick="rICancel()">Annuler</button><button class="btn btn-p" onclick="rISave()">'+(S.rIEditId?"💾 Enregistrer":"✅ Ajouter")+"</button></div></div>";
@@ -1113,6 +1251,9 @@ window.addEventListener("resize",function(){
   if(document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA"||document.activeElement.tagName==="SELECT"))return;
   if(S.jView==="form"||S.rView==="form"||S.sView==="form"||S.showIF||S.showRIF)return;
   clearTimeout(_resizeT);_resizeT=setTimeout(render,300);
+});
+window.addEventListener('online',function(){
+  if(_pendingSync&&SYNC_GIST_ID&&SYNC_TOKEN){showToast("📡 Connexion rétablie — synchronisation en cours","#34943f");syncPush();}
 });
 S.sal=JSON.parse(JSON.stringify(SEED_SAL));
 S.jrd=JSON.parse(JSON.stringify(SEED_JRD));
