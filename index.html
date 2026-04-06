@@ -887,8 +887,8 @@ function pgDash(){
   var relH='<div class="card" style="background:'+(relUrgent.length?"#fff8f0":relWarn.length?"#fffde7":"#fff")+';border:2px solid '+(relUrgent.length?"#f0a500":relWarn.length?"#ffe066":"#e8f5e9")+';margin-bottom:16px">'+
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:'+(rel.length?14:0)+'px">'+
     '<span style="font-size:20px">🔔</span><div style="font-size:15px;font-weight:700">Alertes contrats expirant</div>'+
-    (relUrgent.length?'<span class="bdg" style="background:#e74c3c;color:#fff">'+relUrgent.length+" ≤30j</span>":"")+
-    (relWarn.length?'<span class="bdg" style="background:#e67e22;color:#fff">'+relWarn.length+" ≤60j</span>':"")+
+    (relUrgent.length?'<span class="bdg" style="background:#e74c3c;color:#fff">'+relUrgent.length+" &lt;=30j</span>":"")+
+    (relWarn.length?'<span class="bdg" style="background:#e67e22;color:#fff">'+relWarn.length+" &lt;=60j</span>":"")+
     "</div>";
   if(!rel.length)relH+='<p style="color:#888;font-size:13px;margin:0">✅ Aucune relance à prévoir dans les 60 jours.</p>';
   else{
