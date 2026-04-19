@@ -661,6 +661,50 @@ function pdfReport(type,id){
   else{showToast("⚠️ Autorisez les pop-ups pour générer le PDF","#e67e22");}
 }
 
+/* ══ PDF HISTORIQUE CLIENT ══ */
+function pdfClientIV(type,id){
+  var c=type==="jardin"?S.jrd.filter(function(x){return x.id===id;})[0]:S.rbt.filter(function(x){return x.id===id;})[0];
+  if(!c)return;
+  var ivs=(c.iv||[]).slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+  var ivRows=ivs.map(function(i){
+    var types=(i.types&&i.types.length?i.types:i.type?[i.type]:[]).join(", ");
+    var empsStr=(i.emps||[]).map(function(e){return esc(e.label||"");}).filter(Boolean).join(", ");
+    return"<tr><td>"+fmtD(i.date)+"</td><td>"+esc(types)+"</td><td>"+esc(i.commentaire||"")+"</td><td>"+empsStr+"</td></tr>";
+  }).join("");
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Historique interventions – '+esc(c.client)+'</title>'+
+    '<style>body{font-family:Arial,sans-serif;font-size:12px;color:#222;padding:24px;max-width:900px;margin:0 auto}'+
+    'h1{color:#34943f;font-size:20px;margin:0 0 4px}h2{font-size:13px;color:#666;font-weight:normal;margin:0 0 20px}'+
+    '.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #ef7d00;padding-bottom:12px;margin-bottom:16px}'+
+    '.logo{font-size:11px;text-align:right;color:#888;line-height:1.6}'+
+    '.summary{display:flex;gap:12px;margin:0 0 20px;flex-wrap:wrap}'+
+    '.box{background:#f4f6f4;border-radius:6px;padding:10px 16px;min-width:110px;border-left:3px solid #34943f}'+
+    '.box-l{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.04em}'+
+    '.box-v{font-size:16px;font-weight:800;margin-top:2px}'+
+    'table{width:100%;border-collapse:collapse;font-size:11px}'+
+    'th{background:#1a171b;color:#fff;padding:7px 10px;text-align:left}'+
+    'td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:top}'+
+    'tr:nth-child(even)td{background:#fafafa}'+
+    '.footer{margin-top:24px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:10px}'+
+    '@media print{button{display:none}}'+
+    '</style></head><body>'+
+    '<div class="hdr"><div><h1>'+(type==="robot"?"🤖 ":"🌿 ")+esc(c.client)+'</h1>'+
+    '<h2>'+(type==="robot"&&c.modele?esc(c.modele)+" · ":"")+
+    (c.adresse?esc(c.adresse)+" · ":"")+
+    'Contrat du '+(c.debut?fmtD(c.debut):"?")+(c.fin?" au "+fmtD(c.fin):"")+'</h2></div>'+
+    '<div class="logo"><strong>Sarl Babad – Daniel Moquet</strong><br>Généré le '+new Date().toLocaleDateString("fr-FR")+'</div></div>'+
+    '<div class="summary">'+
+    '<div class="box"><div class="box-l">Interventions</div><div class="box-v">'+ivs.length+"</div></div>"+
+    '</div>'+
+    (ivs.length?
+      '<table><thead><tr><th>Date</th><th>Travaux</th><th>Commentaire</th><th>Intervenants</th></tr></thead><tbody>'+ivRows+"</tbody></table>":
+      '<p style="color:#888;font-style:italic">Aucune intervention enregistrée.</p>')+
+    '<div class="footer">Document établi par Sarl Babad – Daniel Moquet</div>'+
+    "<script>setTimeout(function(){window.print();},400);<\/script></body></html>";
+  var w=window.open("","_blank");
+  if(w){w.document.write(html);w.document.close();}
+  else{showToast("⚠️ Autorisez les pop-ups pour générer le PDF","#e67e22");}
+}
+
 /* ══ SALARIÉS ══ */
 function sOpenNew(){S.sEditId=null;S.sF={prenom:"",nom:"",statut:"Ouvrier",taux:20,actif:true};S.tab="salaries";S.sView="form";render();}
 function sOpenEdit(id){var s=S.sal.filter(function(x){return x.id===id;})[0];if(!s)return;S.sEditId=id;S.sF={prenom:s.prenom,nom:s.nom,statut:s.statut,taux:s.taux,actif:s.actif!==false};S.sView="form";render();}
@@ -897,42 +941,13 @@ function pgDash(){
   }
   relH+="</div>";
 
-  var rentaJ='<div class="card">'+secLbl("Rentabilité jardins")+
-    S.jrd.map(function(c){var ca=caC(c),me=ca-coutAll(c.iv||[]),pct=ca>0?Math.round((me/ca)*100):0;
-      return'<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:4px">'+
-        '<span style="font-size:13px;font-weight:600">'+esc(c.client)+"</span>"+
-        '<div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;font-weight:700;color:'+(me>=0?"#34943f":"#c0392b")+'">'+N(me)+' €</span>'+rpill(c.fin)+"</div>"+
-        "</div></div>";
-    }).join("")+"</div>";
-
   var rA=S.rbt.filter(function(r){return r.statut==="actif";});
   var rentaR='<div class="card">'+secLbl("🤖 Robots en cours")+
     (!rA.length?'<div style="color:#aaa;font-size:14px">Aucun robot en location</div>':
     rA.map(function(c){return'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;gap:8px" onclick="goTab(\'robots\');rOpenDetail('+c.id+')">'+
       '<div style="min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.client)+'</div><div style="font-size:12px;color:#888">'+esc(c.modele)+" · fin "+fmtD(c.fin)+"</div></div>"+
-      '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0"><span style="font-weight:700">'+N(c.montant)+' €</span>'+rpill(c.fin)+"</div></div>";}).join(""))+
+      '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'+rpill(c.fin)+"</div></div>";}).join(""))+
     "</div>";
-
-  var rR=S.rbt.filter(function(c){return Number(c.prix_robot||0)+Number(c.prix_abri||0)+Number(c.prix_accessoires||0)>0;});
-  var rRenta="";
-  if(rR.length){
-    rRenta='<div class="card" style="border:2px solid #dbeafe;margin-top:16px">'+secLbl("🤖 Rentabilité robots")+
-      '<div style="font-size:11px;color:#888;margin-bottom:14px">CA = loyer × durée · Coûts = investissement + main d\'œuvre</div>'+
-      rR.map(function(c){
-        var caT=Number(c.montant||0);
-        var inv=Number(c.prix_robot||0)+Number(c.prix_abri||0)+Number(c.prix_accessoires||0);
-        var moIV=coutAll(c.iv||[]),marge=caT-inv-moIV,pct=caT>0?Math.round((marge/caT)*100):0;
-        var mc2=pct>=50?"#34943f":pct>=20?"#b5651d":pct>=0?"#e67e22":"#c0392b";
-        return'<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">'+
-          '<span style="font-weight:700">'+esc(c.client)+' <span style="font-size:12px;color:#888;font-weight:400">'+esc(c.modele)+"</span></span>"+
-          '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
-          (caT?'<span style="font-size:11px;color:#888">CA : '+N(caT)+" €</span>":"")+
-          (inv?'<span style="font-size:11px;color:#888">Invest : '+N(inv)+" €</span>":"")+
-          (moIV?'<span style="font-size:11px;color:#888">MO : '+N(moIV)+" €</span>":"")+
-          '<span style="font-size:11px;font-weight:700;color:'+mc2+'">Marge : '+N(marge)+" €</span>"+
-          rpill(c.fin)+"</div></div></div>";
-      }).join("")+"</div>";
-  }
 
   return'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">'+
     '<h1 class="ptitle" style="margin:0">Tableau de bord</h1>'+
@@ -942,9 +957,7 @@ function pgDash(){
     '<button onclick="exportD()" class="btn btn-p" style="font-size:12px;padding:7px 14px">💾 Exporter</button>'+
     '<button onclick="importD()" class="btn" style="background:#555;color:#fff;font-size:12px;padding:7px 14px">📂 Restaurer</button>'+
     "</div></div>"+
-    stats+mrg+relH+
-    '<div class="g2">'+rentaJ+rentaR+"</div>"+
-    rRenta;
+    stats+mrg+relH+rentaR;
 }
 
 /* ── SALARIÉS LIST ── */
@@ -1055,6 +1068,7 @@ function pgJDetail(){
     '<button class="btn btn-p" onclick="jOpenEdit('+c.id+')">✏️ Modifier</button>'+
     '<button class="btn" style="background:#34943f;color:#fff" onclick="S.jView=\'interventions\';render()">🔧 Interventions</button>'+
     '<button class="btn" style="background:#7c3aed;color:#fff" onclick="pdfReport(\'jardin\','+c.id+')">📄 PDF</button>'+
+    '<button class="btn" style="background:#0891b2;color:#fff" onclick="pdfClientIV(\'jardin\','+c.id+')">📋 Historique client</button>'+
     '<button class="btn btn-o" onclick="reconConfirm('+c.id+',\'jardin\')">🔄 Reconduire</button>'+
     '<button class="btn-rd" onclick="jDelConfirm('+c.id+')">🗑️</button></div></div>'+
     '<div class="pills4">'+passPill((c.iv||[]).length,c.passages_prevus)+pillEl("⏱","Heures",fmtH(totalH(c.iv||[])),"#34943f")+pillEl("💸","Coût MO",N(coutAll(c.iv||[]))+" €","#b5651d")+mPill(ca,c.iv||[])+"</div>"+
@@ -1172,6 +1186,7 @@ function pgRDetail(){
     '<button class="btn btn-p" onclick="rOpenEdit('+c.id+')">✏️ Modifier</button>'+
     '<button class="btn" style="background:#34943f;color:#fff" onclick="S.rView=\'interventions\';render()">🔧 Interventions ('+ivN+(ivP?"/"+ivP:"")+")  </button>"+
     '<button class="btn" style="background:#7c3aed;color:#fff" onclick="pdfReport(\'robot\','+c.id+')">📄 PDF</button>'+
+    '<button class="btn" style="background:#0891b2;color:#fff" onclick="pdfClientIV(\'robot\','+c.id+')">📋 Historique client</button>'+
     '<button class="btn btn-o" onclick="reconConfirm('+c.id+',\'robot\')">🔄 Reconduire</button>'+
     '<button class="btn-rd" onclick="rDelConfirm('+c.id+')">🗑️</button></div></div>'+
     (inv?'<div style="margin-bottom:16px">'+secLbl("💰 Investissement matériel")+'<div class="g3">'+iboxEl("🤖","Prix robot",c.prix_robot?N(c.prix_robot)+" €":"—")+iboxEl("🏠","Prix abri",c.prix_abri?N(c.prix_abri)+" €":"—")+iboxEl("🔧","Accessoires",c.prix_accessoires?N(c.prix_accessoires)+" €":"—")+"</div>"+
