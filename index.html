@@ -288,6 +288,7 @@ function syncPush(){
     headers:{"Authorization":"Bearer "+SYNC_TOKEN,"Content-Type":"application/json"},
     body:JSON.stringify({files:payload})
   }).then(function(r){
+    if(r.status===401){throw new Error("HTTP 401 — token invalide ou expiré");}
     if(!r.ok)throw new Error("HTTP "+r.status);
     _syncSt="ok";renderSyncBadge();
     _pendingSync=false;try{localStorage.removeItem(SK+"_pending");}catch(e){}
@@ -296,6 +297,9 @@ function syncPush(){
     _syncSt="error";renderSyncBadge();
     _pendingSync=true;try{localStorage.setItem(SK+"_pending","1");}catch(ex){}
     if(!navigator.onLine){showToast("📶 Hors ligne — sync en attente","#e67e22");}
+    else if(/401/.test(e.message)){
+      showToast("🔑 Token GitHub invalide — clic sur ⚙️ pour le renouveler","#c0392b");
+    }
     else{showToast("❌ Erreur sync : "+e.message,"#c0392b");}
   });
 }
@@ -313,6 +317,11 @@ function syncPull(silent){
   return fetch("https://api.github.com/gists/"+SYNC_GIST_ID,{
     headers:{"Authorization":"Bearer "+SYNC_TOKEN}
   }).then(function(r){
+    if(r.status===401){
+      _syncSt="error";renderSyncBadge();
+      if(!silent)showToast("🔑 Token GitHub invalide — clic sur ⚙️ pour le renouveler","#c0392b");
+      throw new Error("HTTP 401");
+    }
     if(!r.ok)throw new Error("HTTP "+r.status);
     return r.json();
   }).then(function(gist){
@@ -511,7 +520,8 @@ function renderHeader(){
     '<button class="hbtn" onclick="addMain()">'+(m?"+":addLbl)+"</button>"+
     (SYNC_TOKEN?
       '<button onclick="syncPush()" title="Envoyer vers le cloud" style="background:#0366d6;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px"><span id="sync-badge">☁️</span>⬆</button>'+
-      '<button onclick="syncPull()" title="Récupérer du cloud" style="background:#6f42c1;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px">☁️⬇</button>'
+      '<button onclick="syncPull()" title="Récupérer du cloud" style="background:#6f42c1;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px">☁️⬇</button>'+
+      '<button onclick="syncSetup()" title="Renouveler le token GitHub" style="background:#999;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px">⚙️</button>'
     :
       '<button onclick="syncSetup()" title="Configurer sync cloud" style="background:#0366d6;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px">☁️⚙️</button>'
     )+
