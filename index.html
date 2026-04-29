@@ -1112,12 +1112,25 @@ function pgJIV(){
     sorted.map(function(i){
       var h=totalH([i]),cout=coutIV(i);
       var chips=(i.emps||[]).map(function(e){return'<div class="empchip"><span>👷</span><span style="font-weight:600;font-size:13px">'+esc(e.label||"—")+'</span><span class="stag">'+fmtH(Number(e.h||0))+'</span><span style="background:#fef3e2;color:#b5651d;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700">'+e.taux+" €/h</span></div>";}).join("");
+      // 🆕 Bloc "Pointage terrain" — alimenté par le bot via push Gist depuis la mini-app
+      var pointageBlock="";
+      if(i.hours_actual!=null){
+        var startTime=i.started_at?new Date(i.started_at).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}):"?";
+        var endTime=i.ended_at?new Date(i.ended_at).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}):"?";
+        var crewStr=(i.crew&&i.crew.length)?i.crew.join(" + "):"";
+        pointageBlock='<div style="background:#e8f4fd;border-left:3px solid #2196f3;padding:8px 12px;border-radius:0 6px 6px 0;margin-bottom:10px;font-size:13px">'+
+          '<div style="font-weight:700;color:#1565c0;margin-bottom:4px">📍 Pointage terrain</div>'+
+          '<div>'+startTime+' → '+endTime+' ('+fmtH(Number(i.hours_actual))+(crewStr?' · '+esc(crewStr):'')+')</div>'+
+          (i.notes_pointage?'<div style="font-style:italic;color:#555;margin-top:4px">"'+esc(i.notes_pointage)+'"</div>':'')+
+          '</div>';
+      }
       return'<div class="icard">'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">'+
         '<div>'+((i.types&&i.types.length?i.types:i.type?[i.type]:[]).map(function(t){return'<span class="stag" style="background:#e8f5e9">'+esc(t)+"</span>";}).join(" ")+(i.types&&i.types.length||i.type?" ":"")||"")+
         '<span style="font-weight:700">📅 '+fmtD(i.date)+"</span>"+
         (i.commentaire?'<div style="font-size:13px;color:#555;background:#fff8f0;border-left:3px solid #ef7d00;padding:6px 10px;border-radius:0 6px 6px 0;margin-top:6px">'+esc(i.commentaire)+"</div>":"")+"</div>"+
         '<div style="display:flex;gap:6px"><button class="btn-sm" onclick="iOpenEdit('+i.id+')">✏️</button><button class="btn-rd" onclick="iDelConfirm('+i.id+')">🗑️</button></div></div>'+
+        pointageBlock+
         (chips?'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">'+chips+"</div>":"")+
         '<div style="display:flex;gap:16px;flex-wrap:wrap;background:#f9fdf9;border-radius:8px;padding:8px 12px"><span style="font-size:13px;color:#555">⏱ <strong>'+fmtH(h)+"</strong></span>"+(cout?'<span style="font-size:13px;color:#555">💸 Coût : <strong style="color:#b5651d">'+N(cout)+" €</strong></span>":"")+"</div></div>";
     }).join("");
