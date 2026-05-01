@@ -269,9 +269,26 @@ function saveD(){
   else if(isGistSyncOn()){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncPush,300);}
   else{_pendingSync=true;try{localStorage.setItem(SK+"_pending","1");}catch(e){}}
 }
+/* normalizeIds : convertit les IDs numériques string→number pour cohérence
+   avec le HTML onclick (qui passe les IDs sans quotes → JS les voit comme number).
+   Sans ça : x.id==="123" (string en mémoire) !== 123 (number du clic) → page blanche. */
+function normalizeIds(arr){
+  if(!Array.isArray(arr))return arr;
+  for(var i=0;i<arr.length;i++){
+    var c=arr[i];if(!c)continue;
+    var n=Number(c.id);
+    if(!isNaN(n)&&String(n)===String(c.id))c.id=n;
+    if(Array.isArray(c.iv))for(var j=0;j<c.iv.length;j++){
+      var iv=c.iv[j];if(!iv)continue;
+      var ni=Number(iv.id);
+      if(!isNaN(ni)&&String(ni)===String(iv.id))iv.id=ni;
+    }
+  }
+  return arr;
+}
 function loadD(){try{var r=localStorage.getItem(SK);if(!r)return false;var d=JSON.parse(r);if(d.sal)S.sal=d.sal;
-  if(d.jrd){S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});}
-  if(d.rbt){S.rbt=d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;});}
+  if(d.jrd){S.jrd=normalizeIds(d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;}));}
+  if(d.rbt){S.rbt=normalizeIds(d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;}));}
   return d.ts?new Date(d.ts).toLocaleString("fr-FR"):"?";}catch(e){return false;}}
 
 /* ══ CLOUD SYNC ══
@@ -335,8 +352,8 @@ function _applyPulledData(d, sourceLabel, silent){
   }
   if(isEditing()){_syncSt="ok";renderSyncBadge();return;}
   if(d.sal)S.sal=d.sal;
-  if(d.jrd)S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});
-  if(d.rbt)S.rbt=d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;});
+  if(d.jrd)S.jrd=normalizeIds(d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;}));
+  if(d.rbt)S.rbt=normalizeIds(d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;}));
   try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:d.ts}));}catch(e){}
   _lastSavedHash=JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt});
   render();
