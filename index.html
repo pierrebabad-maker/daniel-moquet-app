@@ -264,7 +264,9 @@ function saveD(){
   _lastSavedHash=h;
   try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:Date.now()}));}catch(e){}
   saveHistory();
-  if(SYNC_GIST_ID&&SYNC_TOKEN){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncPush,300);}
+  /* En mode API : pas de push (lecture seule). En Gist : push debouncé 300ms. */
+  if(isApiSyncOn()){/* no push, Notion = source de vérité */}
+  else if(isGistSyncOn()){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncPush,300);}
   else{_pendingSync=true;try{localStorage.setItem(SK+"_pending","1");}catch(e){}}
 }
 function loadD(){try{var r=localStorage.getItem(SK);if(!r)return false;var d=JSON.parse(r);if(d.sal)S.sal=d.sal;
@@ -272,13 +274,25 @@ function loadD(){try{var r=localStorage.getItem(SK);if(!r)return false;var d=JSO
   if(d.rbt){S.rbt=d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;});}
   return d.ts?new Date(d.ts).toLocaleString("fr-FR"):"?";}catch(e){return false;}}
 
-/* ══ CLOUD SYNC (GitHub Gist) ══ */
+/* ══ CLOUD SYNC ══
+   Mode 1 (recommandé) : API Railway → lecture directe Notion (source de vérité).
+   Mode 2 (legacy)     : GitHub Gist → fallback si API non configurée.
+   La présence de DM_API_BASE+DM_API_KEY active automatiquement le mode 1. */
+var DM_API_BASE=localStorage.getItem(SOCIETE+"_api_base")||"";
+var DM_API_KEY=localStorage.getItem(SOCIETE+"_api_key")||"";
 var SYNC_GIST_ID=SOC_CFG.gist||localStorage.getItem(SOCIETE+"_gist_id")||"";
 var SYNC_TOKEN=localStorage.getItem(SOCIETE+"_gh_token")||"";
 var SYNC_FILE=SOCIETE+"-sync.json";
 var _syncSt="idle";
 
+function isApiSyncOn(){return !!(DM_API_BASE&&DM_API_KEY);}
+function isGistSyncOn(){return !!(SYNC_GIST_ID&&SYNC_TOKEN);}
+function isSyncConfigured(){return isApiSyncOn()||isGistSyncOn();}
+
 function syncPush(){
+  /* Mode API Railway : lecture seule depuis Notion → pas de push depuis l'app.
+     Les modifs locales de l'app PWA restent en localStorage uniquement. */
+  if(isApiSyncOn()){_syncSt="ok";renderSyncBadge();return;}
   if(!SYNC_GIST_ID||!SYNC_TOKEN){_pendingSync=true;try{localStorage.setItem(SK+"_pending","1");}catch(e){}return;}
   _syncSt="syncing";renderSyncBadge();
   var payload={};
@@ -309,11 +323,45 @@ function isEditing(){
     (document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA"||document.activeElement.tagName==="SELECT"));
 }
 
-function syncPull(silent){
-  if(!SYNC_GIST_ID||!SYNC_TOKEN)return Promise.resolve();
-  /* ne jamais écraser un formulaire en cours */
-  if(silent&&isEditing())return Promise.resolve();
-  if(!silent){_syncSt="syncing";renderSyncBadge();}
+function _applyPulledData(d, sourceLabel, silent){
+  if(!d||!d.ts){_syncSt="ok";renderSyncBadge();return;}
+  /* En mode API : Notion = source de vérité, on écrase TOUJOURS le local
+     (pas de comparaison de ts avec le local). En mode Gist legacy : on
+     compare comme avant pour ne pas écraser les modifs locales. */
+  if(!isApiSyncOn()){
+    var localTs=0;
+    try{var loc=JSON.parse(localStorage.getItem(SK));localTs=loc&&loc.ts?loc.ts:0;}catch(e){}
+    if(localTs>=d.ts){_syncSt="ok";renderSyncBadge();return;}
+  }
+  if(isEditing()){_syncSt="ok";renderSyncBadge();return;}
+  if(d.sal)S.sal=d.sal;
+  if(d.jrd)S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});
+  if(d.rbt)S.rbt=d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;});
+  try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:d.ts}));}catch(e){}
+  _lastSavedHash=JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt});
+  render();
+  _syncSt="ok";renderSyncBadge();
+  if(!silent)showToast("☁️ "+sourceLabel,"#34943f");
+}
+
+function _pullFromApi(silent){
+  var url=DM_API_BASE.replace(/\/$/,"")+"/api/dm-data?soc="+encodeURIComponent(SOCIETE)+"&key="+encodeURIComponent(DM_API_KEY);
+  return fetch(url).then(function(r){
+    if(r.status===401){
+      _syncSt="error";renderSyncBadge();
+      if(!silent)showToast("🔑 Clé API invalide — clic sur ⚙️ pour la renouveler","#c0392b");
+      throw new Error("HTTP 401");
+    }
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return r.json();
+  }).then(function(d){_applyPulledData(d,"Données chargées (Notion)",silent);})
+    .catch(function(e){
+      _syncSt="error";renderSyncBadge();
+      if(!silent)showToast("❌ Erreur API : "+e.message,"#c0392b");
+    });
+}
+
+function _pullFromGist(silent){
   return fetch("https://api.github.com/gists/"+SYNC_GIST_ID,{
     headers:{"Authorization":"Bearer "+SYNC_TOKEN}
   }).then(function(r){
@@ -328,35 +376,32 @@ function syncPull(silent){
     var f=gist.files[SYNC_FILE];
     if(!f||!f.content||f.content==="{}"){_syncSt="ok";renderSyncBadge();return;}
     var d=JSON.parse(f.content);
-    if(!d.ts){_syncSt="ok";renderSyncBadge();return;}
-    var localTs=0;
-    try{var loc=JSON.parse(localStorage.getItem(SK));localTs=loc&&loc.ts?loc.ts:0;}catch(e){}
-    if(localTs>=d.ts){_syncSt="ok";renderSyncBadge();return;}
-    /* ne pas écraser si on est en train d'éditer (double check) */
-    if(isEditing()){_syncSt="ok";renderSyncBadge();return;}
-    if(d.sal)S.sal=d.sal;
-    if(d.jrd)S.jrd=d.jrd.map(function(c){c.montant=Number(c.montant)||0;return c;});
-    if(d.rbt)S.rbt=d.rbt.map(function(c){c.montant=Number(c.montant)||0;return c;});
-    try{localStorage.setItem(SK,JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt,ts:d.ts}));}catch(e){}
-    _lastSavedHash=JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt}); /* préserve le ts du Gist, évite re-save immédiat */
-    render();
-    _syncSt="ok";renderSyncBadge();
-    if(!silent)showToast("☁️ Données cloud chargées","#34943f");
+    _applyPulledData(d,"Données cloud chargées",silent);
   }).catch(function(e){
     _syncSt="error";renderSyncBadge();
     if(!silent)showToast("❌ Erreur sync : "+e.message,"#c0392b");
   });
 }
 
-/* polling auto toutes les 30s + sync au retour sur l'app */
+function syncPull(silent){
+  if(!isSyncConfigured())return Promise.resolve();
+  /* ne jamais écraser un formulaire en cours */
+  if(silent&&isEditing())return Promise.resolve();
+  if(!silent){_syncSt="syncing";renderSyncBadge();}
+  /* Priorité : API Railway (Notion live) > Gist legacy */
+  if(isApiSyncOn())return _pullFromApi(silent);
+  return _pullFromGist(silent);
+}
+
+/* polling auto toutes les 2 min + sync au retour sur l'app */
 var _pollTimer=null;
 function startPoll(){
-  if(!SYNC_GIST_ID||!SYNC_TOKEN)return;
+  if(!isSyncConfigured())return;
   clearInterval(_pollTimer);
   _pollTimer=setInterval(function(){syncPull(true);},120000);
 }
 document.addEventListener("visibilitychange",function(){
-  if(!document.hidden&&SYNC_GIST_ID&&SYNC_TOKEN)syncPull(true);
+  if(!document.hidden&&isSyncConfigured())syncPull(true);
 });
 
 function renderSyncBadge(){
@@ -366,12 +411,33 @@ function renderSyncBadge(){
 }
 
 function syncSetup(){
-  var tok=prompt("Collez votre token GitHub (github_pat_...) :",SYNC_TOKEN);
-  if(tok===null)return;
-  SYNC_TOKEN=tok.trim();
-  localStorage.setItem(SOCIETE+"_gh_token",SYNC_TOKEN);
-  if(SYNC_GIST_ID&&SYNC_TOKEN){syncPull().then(function(){syncPush();startPoll();});}
-  showToast("☁️ Sync configurée","#34943f");
+  var mode=prompt(
+    "Mode de synchronisation ?\n\n"+
+    "1 = API Railway (recommandé — lit Notion en temps réel)\n"+
+    "2 = GitHub Gist (legacy)\n\n"+
+    "Tape 1 ou 2 :",
+    isApiSyncOn()?"1":(isGistSyncOn()?"2":"1")
+  );
+  if(mode===null)return;
+  if(mode.trim()==="1"){
+    var base=prompt("URL de l'API Railway\n(ex: https://pierre-assistant.up.railway.app) :",DM_API_BASE);
+    if(base===null)return;
+    var key=prompt("Clé API (DM_APP_API_KEY configurée sur Railway) :",DM_API_KEY);
+    if(key===null)return;
+    DM_API_BASE=base.trim().replace(/\/$/,"");
+    DM_API_KEY=key.trim();
+    localStorage.setItem(SOCIETE+"_api_base",DM_API_BASE);
+    localStorage.setItem(SOCIETE+"_api_key",DM_API_KEY);
+    showToast("☁️ Sync API Railway configurée","#34943f");
+    syncPull().then(function(){startPoll();});
+  } else {
+    var tok=prompt("Collez votre token GitHub (github_pat_...) :",SYNC_TOKEN);
+    if(tok===null)return;
+    SYNC_TOKEN=tok.trim();
+    localStorage.setItem(SOCIETE+"_gh_token",SYNC_TOKEN);
+    if(SYNC_GIST_ID&&SYNC_TOKEN){syncPull().then(function(){syncPush();startPoll();});}
+    showToast("☁️ Sync Gist configurée","#34943f");
+  }
   render();
 }
 function exportD(){
@@ -1295,7 +1361,8 @@ window.addEventListener("resize",function(){
   clearTimeout(_resizeT);_resizeT=setTimeout(render,300);
 });
 window.addEventListener('online',function(){
-  if(_pendingSync&&SYNC_GIST_ID&&SYNC_TOKEN){showToast("📡 Connexion rétablie — synchronisation en cours","#34943f");syncPush();}
+  if(isApiSyncOn()){syncPull(true);return;}
+  if(_pendingSync&&isGistSyncOn()){showToast("📡 Connexion rétablie — synchronisation en cours","#34943f");syncPush();}
 });
 S.sal=JSON.parse(JSON.stringify(SEED_SAL));
 S.jrd=JSON.parse(JSON.stringify(SEED_JRD));
@@ -1309,7 +1376,7 @@ if(!loaded){
 _lastSavedHash=JSON.stringify({sal:S.sal,jrd:S.jrd,rbt:S.rbt});
 render();
 if(loaded)showToast("✅ Données chargées ("+loaded+")","#34943f");
-if(SYNC_GIST_ID&&SYNC_TOKEN){setTimeout(function(){syncPull();startPoll();},1500);}
+if(isSyncConfigured()){setTimeout(function(){syncPull();startPoll();},1500);}
 
 </script>
 <script>
