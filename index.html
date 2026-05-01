@@ -648,18 +648,28 @@ function renderModals(){
 /* ══ DISPATCHER ══ */
 function renderApp(){
   var h="";
-  if(S.tab==="dashboard")h=pgDash();
-  else if(S.tab==="salaries")h=S.sView==="form"?pgSalForm():pgSalList();
-  else if(S.tab==="jardins"){
-    if(S.jView==="list")h=pgJList();
-    else if(S.jView==="detail")h=pgJDetail();
-    else if(S.jView==="interventions")h=pgJIV();
-    else if(S.jView==="form")h=pgJForm();
-  }else if(S.tab==="robots"){
-    if(S.rView==="list")h=pgRList();
-    else if(S.rView==="detail")h=pgRDetail();
-    else if(S.rView==="interventions")h=pgRIV();
-    else if(S.rView==="form")h=pgRForm();
+  try{
+    if(S.tab==="dashboard")h=pgDash();
+    else if(S.tab==="salaries")h=S.sView==="form"?pgSalForm():pgSalList();
+    else if(S.tab==="jardins"){
+      if(S.jView==="list")h=pgJList();
+      else if(S.jView==="detail")h=pgJDetail();
+      else if(S.jView==="interventions")h=pgJIV();
+      else if(S.jView==="form")h=pgJForm();
+    }else if(S.tab==="robots"){
+      if(S.rView==="list")h=pgRList();
+      else if(S.rView==="detail")h=pgRDetail();
+      else if(S.rView==="interventions")h=pgRIV();
+      else if(S.rView==="form")h=pgRForm();
+    }
+  }catch(err){
+    console.error("renderApp crashed",err);
+    h='<div style="margin:30px;padding:20px;background:#f5b7b1;border:1px solid #c0392b;border-radius:8px;color:#922b21">'+
+      '<div style="font-weight:bold;font-size:16px;margin-bottom:10px">⚠️ Erreur d\'affichage</div>'+
+      '<div style="font-family:monospace;font-size:12px;background:white;padding:10px;border-radius:4px;overflow:auto">'+
+      esc(err.message||String(err))+
+      (err.stack?"\n\n"+esc(err.stack.slice(0,1000)):"")+"</div>"+
+      '<button onclick="S.jView=\'list\';S.rView=\'list\';S.jActId=null;S.rActId=null;render()" style="margin-top:12px;background:#c0392b;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer">← Retour à la liste</button></div>';
   }
   document.getElementById("app").innerHTML=h;
 }
@@ -805,7 +815,7 @@ function sDoDel(){S.sal=S.sal.filter(function(s){return s.id!==S.sDelId;});S.sDe
 
 /* ══ JARDINS ══ */
 function jOpenNew(){S.jEditId=null;S.jF={client:"",adresse:"",tel:"",email:"",services:[],debut:"",fin:"",montant:"",statut:"actif",passages_prevus:"",notes:""};S.tab="jardins";S.jView="form";render();}
-function jOpenEdit(id){var c=S.jrd.filter(function(x){return x.id===id;})[0];if(!c)return;S.jEditId=id;S.jF={client:c.client,adresse:c.adresse,tel:c.tel,email:c.email,services:c.services.slice(),debut:c.debut,fin:c.fin,montant:c.montant,statut:c.statut,passages_prevus:c.passages_prevus||"",notes:c.notes};S.jView="form";render();}
+function jOpenEdit(id){var c=S.jrd.filter(function(x){return x.id===id;})[0];if(!c)return;S.jEditId=id;S.jF={client:c.client||"",adresse:c.adresse||"",tel:c.tel||"",email:c.email||"",services:(c.services||[]).slice(),debut:c.debut||"",fin:c.fin||"",montant:c.montant||0,statut:c.statut||"actif",passages_prevus:c.passages_prevus||"",notes:c.notes||""};S.jView="form";render();}
 function jOpenDetail(id){S.jActId=id;S.jView="detail";render();}
 function jSave(){
   syncJForm();var f=S.jF;if(!f.client||!f.debut||!f.fin)return;
@@ -1114,7 +1124,7 @@ function pgJList(){
       var ca=caC(c),me=ca-coutAll(c.iv||[]),pct=ca>0?Math.round((me/ca)*100):0;
       var done=(c.iv||[]).length,plan=Number(c.passages_prevus)||0;
       var ppct=plan>0?Math.min(100,Math.round((done/plan)*100)):0,pc=done>plan&&plan>0?"#c0392b":ppct>=100?"#34943f":"#b5651d";
-      var svcs=c.services.slice(0,2).map(function(s){return'<span class="stag">'+esc(s)+"</span>";}).join("")+(c.services.length>2?'<span style="background:#eee;color:#555;padding:2px 7px;border-radius:12px;font-size:11px">+'+(c.services.length-2)+"</span>":"");
+      var _svc=c.services||[];var svcs=_svc.slice(0,2).map(function(s){return'<span class="stag">'+esc(s)+"</span>";}).join("")+(_svc.length>2?'<span style="background:#eee;color:#555;padding:2px 7px;border-radius:12px;font-size:11px">+'+(_svc.length-2)+"</span>":"");
       return'<tr class="trow" onclick="jOpenDetail('+c.id+')">'+
         '<td><div style="font-weight:700">'+esc(c.client)+(c.reconduit_de?'<span class="sbdg" style="background:#fef3e2;color:#b5651d;margin-left:6px;font-size:10px">🔄</span>':"")+'</div><div style="font-size:12px;color:#888">'+esc(c.adresse)+"</div></td>"+
         '<td style="font-size:13px"><div style="color:#888">'+fmtD(c.debut)+'</div><div style="font-weight:600">'+fmtD(c.fin)+'</div><div style="margin-top:4px">'+rpill(c.fin)+"</div></td>"+
@@ -1161,7 +1171,7 @@ function pgJDetail(){
     [["📞","Téléphone",c.tel],["✉️","Email",c.email],["📅","Début",fmtD(c.debut)],["📅","Fin",fmtD(c.fin)],["💶","Montant total contrat",N(ca)+" €"]].map(function(x){return iboxEl(x[0],x[1],x[2]);}).join("")+
     "</div>"+
     '<div style="margin-bottom:14px">'+secLbl("🌿 Services")+
-    '<div style="display:flex;flex-wrap:wrap;gap:8px">'+c.services.map(function(s){return'<span style="background:#d8f3dc;color:#34943f;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600">'+esc(s)+"</span>";}).join("")+"</div></div>"+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px">'+(c.services||[]).map(function(s){return'<span style="background:#d8f3dc;color:#34943f;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600">'+esc(s)+"</span>";}).join("")+"</div></div>"+
     ((c.iv||[]).length?'<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+secLbl("🔧 Dernières interventions")+
     '<button style="font-size:12px;color:#34943f;background:none;border:none;cursor:pointer;text-decoration:underline" onclick="S.jView=\'interventions\';render()">Tout voir</button></div>'+lastIV+"</div>":"")+
     (c.notes?'<div style="margin-top:14px;background:#fffde7;border:1px solid #fff9c4;border-radius:8px;padding:12px;color:#555;font-size:14px">'+esc(c.notes)+"</div>":"")+
