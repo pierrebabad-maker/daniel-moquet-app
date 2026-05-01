@@ -1,4 +1,4 @@
-var CACHE_NAME = 'babad-dm-v12';
+var CACHE_NAME = 'babad-dm-v13';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -32,7 +32,12 @@ self.addEventListener('activate', function(event) {
 });
 
 self.addEventListener('fetch', function(event) {
-  if (event.request.url.indexOf('api.github.com') !== -1) {
+  // Ne jamais cacher les appels API distants (GitHub Gist + Railway DM-data)
+  // sinon les données ne se rafraîchissent jamais.
+  var url = event.request.url;
+  if (url.indexOf('api.github.com') !== -1 ||
+      url.indexOf('/api/dm-data') !== -1 ||
+      url.indexOf('/api/pointage') !== -1) {
     event.respondWith(fetch(event.request));
     return;
   }

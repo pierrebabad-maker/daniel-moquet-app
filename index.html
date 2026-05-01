@@ -584,13 +584,17 @@ function renderHeader(){
     "<nav>"+nav+"</nav>"+
     '<div style="display:flex;gap:8px;align-items:center">'+
     '<button class="hbtn" onclick="addMain()">'+(m?"+":addLbl)+"</button>"+
-    (SYNC_TOKEN?
+    /* Boutons cloud — affichés selon le mode de sync configuré.
+       En mode API Railway : pas de push (lecture seule), pas de pull manuel (auto sur visibilité).
+       En mode Gist legacy : push/pull manuels. ⚙️ toujours visible pour configurer/changer. */
+    (isApiSyncOn()?
+      '<button onclick="syncPull()" title="Recharger les données Notion" style="background:#117a65;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px"><span id="sync-badge">☁️</span>↻</button>'
+    :isGistSyncOn()?
       '<button onclick="syncPush()" title="Envoyer vers le cloud" style="background:#0366d6;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px"><span id="sync-badge">☁️</span>⬆</button>'+
-      '<button onclick="syncPull()" title="Récupérer du cloud" style="background:#6f42c1;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px">☁️⬇</button>'+
-      '<button onclick="syncSetup()" title="Renouveler le token GitHub" style="background:#999;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px">⚙️</button>'
-    :
-      '<button onclick="syncSetup()" title="Configurer sync cloud" style="background:#0366d6;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px">☁️⚙️</button>'
-    )+
+      '<button onclick="syncPull()" title="Récupérer du cloud" style="background:#6f42c1;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px">☁️⬇</button>'
+    :'')+
+    /* ⚙️ TOUJOURS visible, peu importe l'état de la sync */
+    '<button onclick="syncSetup()" title="Configurer la synchronisation" style="background:#f39c12;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:bold">⚙️</button>'+
     '<button onclick="exportD()" title="Exporter sauvegarde" style="background:#34943f;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:15px">💾</button>'+
     '<button onclick="importD()" title="Restaurer sauvegarde" style="background:#555;color:#fff;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:15px">📂</button>'+
     "</div>";
