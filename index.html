@@ -269,19 +269,33 @@ function saveD(){
   else if(isGistSyncOn()){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncPush,300);}
   else{_pendingSync=true;try{localStorage.setItem(SK+"_pending","1");}catch(e){}}
 }
-/* normalizeIds : convertit les IDs numériques string→number pour cohérence
-   avec le HTML onclick (qui passe les IDs sans quotes → JS les voit comme number).
-   Sans ça : x.id==="123" (string en mémoire) !== 123 (number du clic) → page blanche. */
+/* normalizeIds : tous les IDs deviennent NUMBER pour cohérence avec le HTML onclick
+   (qui passe les IDs sans quotes → JS les voit comme number primitive).
+   - Si l'ID est une string purement numérique → Number()
+   - Si l'ID est une string avec caractères (UUID Notion hex tronqué, etc.) → hash djb2 stable
+   - Sinon (déjà number) → inchangé
+   Sans ça : `x.id === S.jActId` échoue silencieusement (string vs number) → page blanche
+   ou boutons modifier/supprimer inopérants. */
+function _hashId(s){
+  var h=5381;for(var i=0;i<s.length;i++)h=((h*33)^s.charCodeAt(i))>>>0;
+  return h*1000+(s.length%1000);
+}
+function _toNumId(v){
+  if(typeof v==='number')return v;
+  if(v==null)return v;
+  var s=String(v);
+  var n=Number(s);
+  if(!isNaN(n)&&String(n)===s)return n;
+  return _hashId(s);
+}
 function normalizeIds(arr){
   if(!Array.isArray(arr))return arr;
   for(var i=0;i<arr.length;i++){
     var c=arr[i];if(!c)continue;
-    var n=Number(c.id);
-    if(!isNaN(n)&&String(n)===String(c.id))c.id=n;
+    c.id=_toNumId(c.id);
     if(Array.isArray(c.iv))for(var j=0;j<c.iv.length;j++){
       var iv=c.iv[j];if(!iv)continue;
-      var ni=Number(iv.id);
-      if(!isNaN(ni)&&String(ni)===String(iv.id))iv.id=ni;
+      iv.id=_toNumId(iv.id);
     }
   }
   return arr;
