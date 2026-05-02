@@ -1,4 +1,4 @@
-var CACHE_NAME = 'babad-dm-v17';
+var CACHE_NAME = 'babad-dm-v16';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -37,10 +37,7 @@ self.addEventListener('fetch', function(event) {
   var url = event.request.url;
   if (url.indexOf('api.github.com') !== -1 ||
       url.indexOf('/api/dm-data') !== -1 ||
-      url.indexOf('/api/pointage') !== -1 ||
-      url.indexOf('/api/achat') !== -1 ||
-      url.indexOf('/api/photo-chantier') !== -1 ||
-      url.indexOf('drive.google.com/thumbnail') !== -1) {
+      url.indexOf('/api/pointage') !== -1) {
     event.respondWith(fetch(event.request));
     return;
   }
