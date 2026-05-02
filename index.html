@@ -686,6 +686,7 @@ function renderApp(){
       if(S.jView==="list")h=pgJList();
       else if(S.jView==="detail")h=pgJDetail();
       else if(S.jView==="interventions")h=pgJIV();
+      else if(S.jView==="photos")h=pgJPhotos();
       else if(S.jView==="form")h=pgJForm();
     }else if(S.tab==="robots"){
       if(S.rView==="list")h=pgRList();
@@ -1170,6 +1171,131 @@ function pgJList(){
     }).join("")+"</tbody></table></div>";
 }
 
+/* ── PHOTOS CHANTIER (avant/après) ── */
+/* État UI : on garde le client, les listes avant/après, et l'état d'upload en cours.
+   Le DOM est rerendu via render() après chaque changement. */
+var _photosState = { client: null, avant: [], apres: [], loading: false, uploading: null, folder_url: null, error: null };
+
+function jOpenPhotos(){
+  var c=(S.jrd||[]).find(function(x){return x.id===S.jActId;});
+  if(!c){return;}
+  S.jView='photos';
+  _photosState={client:c.client,avant:[],apres:[],loading:true,uploading:null,folder_url:null,error:null};
+  render();
+  fetchPhotos();
+}
+
+function fetchPhotos(){
+  if(!isApiSyncOn()){
+    _photosState.loading=false;
+    _photosState.error="Mode API Railway requis pour les photos. Configure ⚙️ → Mode 1.";
+    render();
+    return;
+  }
+  var url=DM_API_BASE.replace(/\/$/,"")+"/api/photo-chantier/list?client="+encodeURIComponent(_photosState.client)+"&key="+encodeURIComponent(DM_API_KEY);
+  fetch(url).then(function(r){
+    if(r.status===401)throw new Error("Clé API invalide");
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return r.json();
+  }).then(function(d){
+    _photosState.loading=false;
+    _photosState.avant=d.avant||[];
+    _photosState.apres=d.apres||[];
+    _photosState.folder_url=d.folder_url||null;
+    render();
+  }).catch(function(e){
+    _photosState.loading=false;
+    _photosState.error=e.message;
+    render();
+  });
+}
+
+function uploadPhoto(type,file){
+  if(!file)return;
+  if(!isApiSyncOn()){showToast("Mode API requis","#c0392b");return;}
+  _photosState.uploading=type;
+  render();
+  var reader=new FileReader();
+  reader.onload=function(){
+    var idx=String(reader.result).indexOf(",");
+    var b64=idx>=0?reader.result.slice(idx+1):reader.result;
+    fetch(DM_API_BASE.replace(/\/$/,"")+"/api/photo-chantier?key="+encodeURIComponent(DM_API_KEY),{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        client:_photosState.client,type:type,
+        intervention_date:new Date().toISOString().slice(0,10),
+        photo_base64:b64,photo_filename:file.name,photo_mimetype:file.type||"image/jpeg"
+      })
+    }).then(function(r){return r.json().then(function(j){return{ok:r.ok,data:j};});}).then(function(res){
+      _photosState.uploading=null;
+      if(!res.ok){showToast("❌ "+(res.data.error||"upload échoué"),"#c0392b");render();return;}
+      showToast("✅ Photo "+(type==="avant"?"AVANT":"APRÈS")+" ajoutée","#34943f");
+      fetchPhotos();
+    }).catch(function(e){
+      _photosState.uploading=null;
+      showToast("❌ "+e.message,"#c0392b");
+      render();
+    });
+  };
+  reader.onerror=function(){
+    _photosState.uploading=null;
+    showToast("❌ Lecture photo échouée","#c0392b");
+    render();
+  };
+  reader.readAsDataURL(file);
+}
+
+function pgJPhotos(){
+  var c=(S.jrd||[]).find(function(x){return x.id===S.jActId;});
+  if(!c)return"";
+  var s=_photosState;
+
+  var thumbUrl=function(p){
+    /* Drive thumbnail public via id (le fichier doit être 'anyone with link') */
+    return "https://drive.google.com/thumbnail?id="+p.id+"&sz=w400";
+  };
+  var photoTile=function(p){
+    return'<a href="'+p.url+'" target="_blank" style="display:block;border:1px solid #ddd;border-radius:8px;overflow:hidden;background:white;text-decoration:none;color:#555">'+
+      '<div style="aspect-ratio:1/1;background:#f5f5f5 url(\''+thumbUrl(p)+'\') center/cover no-repeat"></div>'+
+      '<div style="padding:6px;font-size:10px;text-align:center;border-top:1px solid #eee">'+esc((p.name||"").slice(0,18))+"</div>"+
+    '</a>';
+  };
+
+  var grid=function(arr){
+    if(arr.length===0)return'<div style="color:#888;font-style:italic;font-size:13px;padding:10px">Aucune photo pour l\'instant.</div>';
+    return'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">'+arr.map(photoTile).join("")+"</div>";
+  };
+
+  return'<button class="btn-bk" onclick="S.jView=\'detail\';render()">← Retour</button>'+
+    '<div class="card-lg"><div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px">'+
+    '<h2 style="font-size:22px;font-weight:800;margin:0">📷 Photos — '+esc(c.client)+"</h2>"+
+    (s.folder_url?'<a href="'+s.folder_url+'" target="_blank" style="color:#117a65;font-size:13px;text-decoration:underline">📂 Ouvrir le dossier Drive ↗</a>':"")+
+    '</div></div>'+
+
+    '<div class="card-lg" style="margin-top:14px">'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+    '<button class="big" style="background:'+(s.uploading==="avant"?"#aaa":"#27ae60")+';color:white;border:none;padding:18px;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer" onclick="document.getElementById(\'pho-avant\').click()" '+(s.uploading?"disabled":"")+'>'+
+    (s.uploading==="avant"?'⏳ Envoi...':'📷 Photo AVANT')+
+    '</button>'+
+    '<input type="file" id="pho-avant" accept="image/*" capture="environment" style="display:none" onchange="uploadPhoto(\'avant\',this.files[0]);this.value=\'\';">'+
+    '<button class="big" style="background:'+(s.uploading==="apres"?"#aaa":"#c0392b")+';color:white;border:none;padding:18px;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer" onclick="document.getElementById(\'pho-apres\').click()" '+(s.uploading?"disabled":"")+'>'+
+    (s.uploading==="apres"?'⏳ Envoi...':'📷 Photo APRÈS')+
+    '</button>'+
+    '<input type="file" id="pho-apres" accept="image/*" capture="environment" style="display:none" onchange="uploadPhoto(\'apres\',this.files[0]);this.value=\'\';">'+
+    '</div></div>'+
+
+    (s.loading?'<div style="text-align:center;padding:30px;color:#888">⏳ Chargement des photos...</div>':
+      s.error?'<div style="background:#f5b7b1;color:#922b21;padding:14px;border-radius:8px;margin-top:14px">❌ '+esc(s.error)+'</div>':
+      '<div class="card-lg" style="margin-top:14px">'+
+        '<div style="font-weight:700;color:#27ae60;margin-bottom:10px;font-size:15px">📸 AVANT ('+s.avant.length+')</div>'+grid(s.avant)+
+      '</div>'+
+      '<div class="card-lg" style="margin-top:10px">'+
+        '<div style="font-weight:700;color:#c0392b;margin-bottom:10px;font-size:15px">📸 APRÈS ('+s.apres.length+')</div>'+grid(s.apres)+
+      '</div>'
+    );
+}
+
 /* ── JARDINS DETAIL ── */
 function pgJDetail(){
   var c=S.jrd.filter(function(x){return x.id===S.jActId;})[0];if(!c)return"";
@@ -1192,6 +1318,7 @@ function pgJDetail(){
     '<div class="dacts">'+bdg(c.statut)+rpill(c.fin)+
     '<button class="btn btn-p" onclick="jOpenEdit('+c.id+')">✏️ Modifier</button>'+
     '<button class="btn" style="background:#34943f;color:#fff" onclick="S.jView=\'interventions\';render()">🔧 Interventions</button>'+
+    '<button class="btn" style="background:#e67e22;color:#fff" onclick="jOpenPhotos()">📷 Photos</button>'+
     '<button class="btn" style="background:#7c3aed;color:#fff" onclick="pdfReport(\'jardin\','+c.id+')">📄 PDF</button>'+
     '<button class="btn" style="background:#0891b2;color:#fff" onclick="pdfClientIV(\'jardin\','+c.id+')">📋 Historique client</button>'+
     '<button class="btn btn-o" onclick="reconConfirm('+c.id+',\'jardin\')">🔄 Reconduire</button>'+
