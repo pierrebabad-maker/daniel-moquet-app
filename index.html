@@ -1244,6 +1244,14 @@ function pgJIV(){
           '<div>'+startTime+' → '+endTime+' ('+fmtH(Number(i.hours_actual))+(crewStr?' · '+esc(crewStr):'')+')</div>'+
           (i.notes_pointage?'<div style="font-style:italic;color:#555;margin-top:4px">"'+esc(i.notes_pointage)+'"</div>':'')+
           '</div>';
+      } else if(i.statut==="done"){
+        // Iv marquée Faite côté Notion mais aucun pointage saisi via la mini-app
+        // (oubli de pointer ou saisie manuelle directe). On l'affiche explicitement
+        // pour ne pas laisser un blanc qui ressemble à un bug.
+        pointageBlock='<div style="background:#fff8e7;border-left:3px solid #f1c40f;padding:8px 12px;border-radius:0 6px 6px 0;margin-bottom:10px;font-size:13px">'+
+          '<div style="font-weight:700;color:#7d6608;margin-bottom:4px">⏱ Pas de pointage saisi</div>'+
+          '<div style="color:#7d6608">Intervention marquée comme faite, mais sans horaires pointés via la mini-app. Saisis manuellement dans Notion si besoin pour la paie.</div>'+
+          '</div>';
       }
       return'<div class="icard">'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">'+
