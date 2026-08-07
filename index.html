@@ -447,6 +447,10 @@ function renderSyncBadge(){
 }
 
 function syncSetup(){
+  if(SYNC_DISABLED){
+    alert("📴 Synchronisation désactivée.\n\nCette application fonctionne en mode MANUEL (données stockées sur cet appareil uniquement). Tes saisies ne sont plus jamais écrasées par l'assistant.\n\nUtilise « Exporter » / « Importer » pour sauvegarder ou transférer tes données.");
+    return;
+  }
   var mode=prompt(
     "Mode de synchronisation ?\n\n"+
     "1 = API Railway (recommandé — lit Notion en temps réel)\n"+
