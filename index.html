@@ -316,8 +316,13 @@ var SYNC_TOKEN=localStorage.getItem(SOCIETE+"_gh_token")||"";
 var SYNC_FILE=SOCIETE+"-sync.json";
 var _syncSt="idle";
 
-function isApiSyncOn(){return !!(DM_API_BASE&&DM_API_KEY);}
-function isGistSyncOn(){return !!(SYNC_GIST_ID&&SYNC_TOKEN);}
+/* 🔒 SYNC CLOUD DÉSACTIVÉE — le PWA fonctionne en LOCAL PUR (saisie manuelle,
+   stockée en localStorage). Plus aucun pull/push vers l'assistant (Notion/Gist/
+   Railway) : les données saisies à la main ne sont plus jamais écrasées.
+   Pour réactiver la sync un jour, repasser SYNC_DISABLED à false. */
+var SYNC_DISABLED=true;
+function isApiSyncOn(){return !SYNC_DISABLED&&!!(DM_API_BASE&&DM_API_KEY);}
+function isGistSyncOn(){return !SYNC_DISABLED&&!!(SYNC_GIST_ID&&SYNC_TOKEN);}
 function isSyncConfigured(){return isApiSyncOn()||isGistSyncOn();}
 
 function syncPush(){
